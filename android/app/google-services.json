@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "470131432213",
+    "project_id": "control-activos-prestamos",
+    "storage_bucket": "control-activos-prestamos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:470131432213:android:997c0e3b21338c0a0fa71c",
+        "android_client_info": {
+          "package_name": "com.example.proyectofinalmovil"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwfplCEkcoVuKVmebZozJBZHqMy_vOsb4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
