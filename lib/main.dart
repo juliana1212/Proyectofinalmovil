@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-
 import 'firebase_options.dart';
 import 'pages/pagina_inicio.dart';
+import 'pages/login_page.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +26,11 @@ class AssetLoanApp extends StatelessWidget {
         colorSchemeSeed: Colors.blue,
         useMaterial3: true,
       ),
-      home: const HomePage(),
+      initialRoute: '/login', // <--- inicia en login
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/home': (context) => const HomePage(),
+      },
     );
   }
 }
