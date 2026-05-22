@@ -1,3 +1,18 @@
+enum AssetStatus {
+  disponible,
+  prestado,
+  vencido,
+  devuelto,
+  mantenimiento,
+  dadoDeBaja,
+}
+
+enum SyncStatus {
+  synced,
+  pending,
+  failed,
+}
+
 enum UserRole {
   solicitante,
   encargadoInventario,
@@ -8,27 +23,4 @@ enum AccountStatus {
   pendingApproval,
   active,
   blocked,
-}
-
-enum AssetStatus {
-  disponible,
-  prestado,
-  vencido,
-  devuelto,
-  enMantenimiento,
-  dadoDeBaja,
-}
-
-enum LoanStatus {
-  pendiente,
-  activo,
-  vencido,
-  devuelto,
-  cancelado,
-}
-
-enum SyncStatus {
-  synced,
-  pendingSync,
-  failedSync,
 }

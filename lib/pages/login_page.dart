@@ -94,7 +94,7 @@ class _LoginPageState extends State<LoginPage> {
           uid: user.uid,
           nombre: doc.get('nombre') ?? '',
           correo: doc.get('correo') ?? '',
-          rol: UserRole.values.firstWhere(
+          role: UserRole.values.firstWhere(
             (e) => e.toString().split('.').last == roleString.trim(),
             orElse: () => UserRole.solicitante,
           ),
@@ -104,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
 
-        print('perfil.rol: ${perfil.rol}');
+        print('perfil.role: ${perfil.role}');
         print('perfil.estado: ${perfil.estado}');
 
         // Verificar permisos y estado
