@@ -1,5 +1,5 @@
-// lib/services/servicio_prestamos.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/activo.dart';
 
 class ServicioPrestamos {
   final CollectionReference prestamosRef =
@@ -7,13 +7,18 @@ class ServicioPrestamos {
 
   // Solicitar un préstamo
   Future<bool> solicitarPrestamo(String activoId, String usuarioId) async {
-    // Validar límite de 2 préstamos activos
-    bool permitido = await puedeSolicitar(usuarioId);
-    if (!permitido) {
-      return false;
+    // Obtener todos los préstamos activos del usuario
+    final snapshot = await prestamosRef
+        .where('usuarioId', isEqualTo: usuarioId)
+        .where('estado', isEqualTo: 'activo')
+        .get();
+
+    // Validar máximo 2 préstamos activos
+    if (snapshot.docs.length >= 2) {
+      return false; // No puede prestar más
     }
 
-    // Crear documento de préstamo
+    // Registrar préstamo
     await prestamosRef.add({
       'activoId': activoId,
       'usuarioId': usuarioId,
@@ -21,21 +26,12 @@ class ServicioPrestamos {
       'estado': 'activo',
     });
 
-    // Actualizar estado del activo a "prestado"
+    // Actualizar estado del activo
     await FirebaseFirestore.instance
         .collection('activos')
         .doc(activoId)
         .update({'estado': 'prestado'});
 
     return true;
-  }
-
-  // Verifica si el usuario puede solicitar un préstamo (menos de 2 activos activos)
-  Future<bool> puedeSolicitar(String usuarioId) async {
-    final snapshot = await prestamosRef
-        .where('usuarioId', isEqualTo: usuarioId)
-        .where('estado', isEqualTo: 'activo')
-        .get();
-    return snapshot.docs.length < 2;
   }
 }

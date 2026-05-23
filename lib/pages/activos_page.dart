@@ -1,4 +1,3 @@
-// lib/pages/activos_page.dart
 import 'package:flutter/material.dart';
 import '../services/servicio_activos.dart';
 import '../services/servicio_prestamos.dart';
@@ -12,8 +11,7 @@ class ActivosPage extends StatelessWidget {
     final servicioActivos = ServicioActivos();
     final servicioPrestamos = ServicioPrestamos();
 
-    // ID del usuario logueado (temporal)
-    final String usuarioId = 'olhl2pxznrZnHwdBz5IQ7CjyCNT2';
+    final String usuarioId = 'usuarioActualId'; // reemplazar según tu login
 
     return Scaffold(
       appBar: AppBar(title: const Text('Activos Disponibles')),
@@ -35,29 +33,25 @@ class ActivosPage extends StatelessWidget {
               bool disponible = activo.estado == "disponible";
 
               return ListTile(
-                title: Text(
-                  activo.nombre,
-                  style: TextStyle(
-                    color: disponible ? Colors.black : Colors.grey,
-                  ),
-                ),
+                title: Text(activo.nombre),
                 subtitle: Text("${activo.categoria} - ${activo.estado}"),
                 enabled: disponible,
                 onTap: disponible
                     ? () async {
-                        try {
-                          final success = await servicioPrestamos
-                              .solicitarPrestamo(activo.id, usuarioId);
+                        final success = await servicioPrestamos.solicitarPrestamo(
+                            activo.id, usuarioId);
+
+                        if (success) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(success
-                                  ? '${activo.nombre} solicitado con éxito'
-                                  : 'No se pudo solicitar'),
-                            ),
+                                content: Text(
+                                    '${activo.nombre} solicitado con éxito')),
                           );
-                        } catch (e) {
+                        } else {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(e.toString())),
+                            const SnackBar(
+                                content: Text(
+                                    'No puedes tener más de 2 préstamos activos')),
                           );
                         }
                       }

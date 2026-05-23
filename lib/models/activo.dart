@@ -1,10 +1,9 @@
-// lib/models/activo.dart
 class Activo {
   final String id;
   final String nombre;
   final String descripcion;
   final String categoria;
-  final String estado;
+  String estado; // mutable para actualizar estado
   final String syncStatus;
 
   Activo({
