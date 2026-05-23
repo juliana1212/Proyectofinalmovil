@@ -1,41 +1,68 @@
 // lib/services/servicio_prestamos.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+ 
 class ServicioPrestamos {
-  final CollectionReference prestamosRef =
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final CollectionReference _prestamosRef =
       FirebaseFirestore.instance.collection('prestamos');
-
-  // Solicitar un préstamo
+ 
+  /// Solicita un préstamo para [activoId] en nombre de [usuarioId].
+  ///
+  /// Lanza [Exception] si el usuario ya tiene 2 préstamos activos.
+  /// Retorna `true` si la operación fue exitosa.
   Future<bool> solicitarPrestamo(String activoId, String usuarioId) async {
-    // Validar límite de 2 préstamos activos
-    bool permitido = await puedeSolicitar(usuarioId);
+    // 1. Validar límite de 2 préstamos activos por usuario
+    final permitido = await puedeSolicitar(usuarioId);
     if (!permitido) {
-      return false;
+      throw Exception('No puedes tener más de 2 préstamos activos');
     }
-
-    // Crear documento de préstamo
-    await prestamosRef.add({
+ 
+    // 2. Verificar que el activo sigue disponible (condición de carrera)
+    final activoDoc =
+        await _db.collection('activos').doc(activoId).get();
+    if (!activoDoc.exists) {
+      throw Exception('El activo no existe');
+    }
+    final estadoActual = activoDoc.data()?['estado'] ?? '';
+    if (estadoActual != 'disponible') {
+      throw Exception('El activo ya no está disponible');
+    }
+ 
+    // 3. Crear documento de préstamo
+    await _prestamosRef.add({
       'activoId': activoId,
       'usuarioId': usuarioId,
-      'fecha': FieldValue.serverTimestamp(),
+      'fechaSolicitud': FieldValue.serverTimestamp(),
+      'fechaVencimiento': Timestamp.fromDate(
+        DateTime.now().add(const Duration(days: 7)),
+      ),
       'estado': 'activo',
     });
-
-    // Actualizar estado del activo a "prestado"
-    await FirebaseFirestore.instance
+ 
+    // 4. Marcar el activo como "prestado"
+    await _db
         .collection('activos')
         .doc(activoId)
         .update({'estado': 'prestado'});
-
+ 
     return true;
   }
-
-  // Verifica si el usuario puede solicitar un préstamo (menos de 2 activos activos)
+ 
+  /// Devuelve `true` si el usuario tiene menos de 2 préstamos activos.
   Future<bool> puedeSolicitar(String usuarioId) async {
-    final snapshot = await prestamosRef
+    final snapshot = await _prestamosRef
         .where('usuarioId', isEqualTo: usuarioId)
         .where('estado', isEqualTo: 'activo')
         .get();
     return snapshot.docs.length < 2;
+  }
+ 
+  /// Devuelve el número de préstamos activos del usuario.
+  Future<int> contarPrestamosActivos(String usuarioId) async {
+    final snapshot = await _prestamosRef
+        .where('usuarioId', isEqualTo: usuarioId)
+        .where('estado', isEqualTo: 'activo')
+        .get();
+    return snapshot.docs.length;
   }
 }

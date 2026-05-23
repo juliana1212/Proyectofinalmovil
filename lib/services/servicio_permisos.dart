@@ -1,24 +1,24 @@
+// lib/services/servicio_permisos.dart
 import '../models/perfil_usuario.dart';
-import '../models/enums.dart';
 
 class ServicioPermisos {
-  // Verifica si el usuario puede acceder al módulo principal
+  // Permite al usuario acceder al módulo principal
   bool puedeAccederModuloPrincipal(PerfilUsuario user) {
-    return user.estado == AccountStatus.active;
+    return user.estado == 'active';
   }
 
-  // Verifica si el usuario puede crear una solicitud de préstamo
+  // Permite al usuario solicitar un préstamo
   bool puedeCrearSolicitud(PerfilUsuario user) {
-    return user.estado == AccountStatus.active && user.role == UserRole.solicitante;
+    return user.estado == 'active' && user.role == 'solicitante';
   }
 
-  // Verifica si el usuario puede aprobar una solicitud de préstamo
+  // Permite al usuario aprobar préstamos
   bool puedeAprobarSolicitud(PerfilUsuario user) {
-    return user.estado == AccountStatus.active && user.role == UserRole.encargadoInventario;
+    return user.estado == 'active' && user.role == 'encargadoInventario';
   }
 
-  // Verifica si el usuario puede gestionar usuarios (admin)
-  bool puedeGestionarUsuarios(PerfilUsuario user) {
-    return user.estado == AccountStatus.active && user.role == UserRole.administrador;
+  // Permite al usuario gestionar préstamos
+  bool puedeGestionarUsuario(PerfilUsuario user) {
+    return user.estado == 'active' && user.role == 'administrador';
   }
 }
