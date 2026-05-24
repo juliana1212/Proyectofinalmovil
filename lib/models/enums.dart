@@ -7,6 +7,12 @@ enum AssetStatus {
   dadoDeBaja,
 }
 
+enum LoanStatus {
+  activo,
+  vencido,
+  devuelto,
+}
+
 enum SyncStatus {
   synced,
   pending,
