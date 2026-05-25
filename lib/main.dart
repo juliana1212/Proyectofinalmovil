@@ -4,6 +4,7 @@ import 'firebase_options.dart';
 
 import 'pages/login_page.dart';
 import 'pages/activos_page.dart';
+import 'pages/devoluciones_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +15,7 @@ void main() async {
 }
 
 class AssetLoanApp extends StatelessWidget {
-  const AssetLoanApp({Key? key}) : super(key: key);
+  const AssetLoanApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +30,7 @@ class AssetLoanApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginPage(),
         '/home': (context) => const ActivosPage(),
+        '/devoluciones': (context) => const DevolucionesPage(),
       },
     );
   }

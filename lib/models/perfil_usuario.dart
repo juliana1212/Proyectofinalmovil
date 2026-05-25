@@ -4,7 +4,7 @@ class PerfilUsuario {
   final String uid;
   final String correo;
   final String nombre;
-  final UserRole role; // cambiar 'role' a 'UserRole'
+  final UserRole role;
   final AccountStatus estado;
 
   PerfilUsuario({
@@ -16,18 +16,36 @@ class PerfilUsuario {
   });
 
   factory PerfilUsuario.fromMap(Map<String, dynamic> map, String uid) {
+    final String roleRaw =
+        (map['role'] ?? map['rol'] ?? 'solicitante').toString().trim();
+
+    final String estadoRaw =
+        (map['status'] ?? map['estado'] ?? 'active')
+            .toString()
+            .trim()
+            .toLowerCase();
+
     return PerfilUsuario(
       uid: uid,
-      correo: map['correo'] ?? '',
-      nombre: map['nombre'] ?? '',
+      correo: (map['correo'] ?? map['email'] ?? '').toString(),
+      nombre: (map['nombre'] ?? map['name'] ?? '').toString(),
       role: UserRole.values.firstWhere(
-        (e) => e.name == map['role'],
+        (rol) => rol.name.toLowerCase() == roleRaw.toLowerCase(),
         orElse: () => UserRole.solicitante,
       ),
-      estado: AccountStatus.values.firstWhere(
-        (e) => e.name == map['estado'],
-        orElse: () => AccountStatus.active,
-      ),
+      estado: _convertirEstado(estadoRaw),
     );
+  }
+
+  static AccountStatus _convertirEstado(String estadoRaw) {
+    if (estadoRaw == 'active' || estadoRaw == 'activo') {
+      return AccountStatus.active;
+    }
+
+    if (estadoRaw == 'blocked' || estadoRaw == 'bloqueado') {
+      return AccountStatus.blocked;
+    }
+
+    return AccountStatus.pendingApproval;
   }
 }
