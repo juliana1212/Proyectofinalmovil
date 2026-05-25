@@ -6,6 +6,7 @@ import '../data/app_database.dart';
 import '../models/enums.dart';
 import '../models/perfil_usuario.dart';
 import '../services/servicio_devoluciones.dart';
+import '../widgets/widgets_devoluciones.dart';
 
 class DevolucionesPage extends StatefulWidget {
   const DevolucionesPage({super.key});
@@ -203,8 +204,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
     } catch (error) {
       if (!mounted) return;
 
-      final mensaje =
-          error.toString().replaceFirst('Exception: ', '');
+      final mensaje = error.toString().replaceFirst('Exception: ', '');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -215,41 +215,6 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
     } finally {
       controladorNovedad.dispose();
     }
-  }
-
-  Widget _bannerPendientes(List<DevolucionesPendiente> pendientes) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      color: Colors.orange.shade100,
-      child: Row(
-        children: [
-          const Icon(
-            Icons.cloud_upload_outlined,
-            color: Colors.orange,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              '${pendientes.length} devolución(es) pendiente(s) de sincronización.',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          FilledButton.tonal(
-            onPressed: sincronizando ? null : _sincronizarPendientes,
-            child: sincronizando
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Sincronizar'),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _listaPendienteSinConexion(
@@ -263,18 +228,8 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
       itemBuilder: (context, index) {
         final pendiente = pendientes[index];
 
-        return Card(
-          child: ListTile(
-            leading: const Icon(
-              Icons.cloud_off_outlined,
-              color: Colors.orange,
-            ),
-            title: Text('Activo: ${pendiente.activoId}'),
-            subtitle: const Text('Pendiente de sincronización'),
-            trailing: const Chip(
-              label: Text('Pendiente'),
-            ),
-          ),
+        return TarjetaDevolucionPendiente(
+          nombreActivo: 'Activo: ${pendiente.activoId}',
         );
       },
     );
@@ -333,6 +288,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
             final datos = prestamoDocumento.data();
             final activoId = (datos['activoId'] ?? '').toString();
             final estado = (datos['estado'] ?? '').toString();
+
             final pendienteLocal =
                 prestamosPendientes.contains(prestamoDocumento.id);
 
@@ -442,34 +398,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
             appBar: AppBar(
               title: const Text('Devoluciones'),
             ),
-            body: const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.lock_outline,
-                      size: 56,
-                      color: Colors.red,
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Acceso restringido',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Solo el encargado de inventario puede confirmar devoluciones.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            body: const AccesoRestringidoDevoluciones(),
           );
         }
 
@@ -501,7 +430,11 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
               body: Column(
                 children: [
                   if (pendientes.isNotEmpty)
-                    _bannerPendientes(pendientes),
+                    BannerPendientesSincronizacion(
+                      cantidadPendientes: pendientes.length,
+                      sincronizando: sincronizando,
+                      onSincronizar: _sincronizarPendientes,
+                    ),
                   Expanded(
                     child: _listaPrestamos(
                       perfil: perfil,
