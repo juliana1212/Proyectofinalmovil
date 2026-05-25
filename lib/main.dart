@@ -15,7 +15,7 @@ void main() async {
 }
 
 class AssetLoanApp extends StatelessWidget {
-  const AssetLoanApp({Key? key}) : super(key: key);
+  const AssetLoanApp({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -1,24 +1,45 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
+import '../data/app_database.dart';
 import '../models/devolucion.dart';
 import '../models/enums.dart';
-import '../models/historial.dart';
-import '../models/mantenimiento.dart';
 import '../models/perfil_usuario.dart';
 import 'servicio_permisos.dart';
+import 'servicio_sincronizacion.dart';
+
+class ResultadoDevolucion {
+  final bool sincronizada;
+  final String mensaje;
+
+  ResultadoDevolucion({
+    required this.sincronizada,
+    required this.mensaje,
+  });
+}
 
 class ServicioDevoluciones {
   final FirebaseFirestore _db;
+  final AppDatabase _database;
   final ServicioPermisos _servicioPermisos;
+  final Connectivity _connectivity;
+  late final ServicioSincronizacion _servicioSincronizacion;
 
   ServicioDevoluciones({
     FirebaseFirestore? db,
+    AppDatabase? database,
     ServicioPermisos? servicioPermisos,
+    Connectivity? connectivity,
   })  : _db = db ?? FirebaseFirestore.instance,
-        _servicioPermisos = servicioPermisos ?? ServicioPermisos();
+        _database = database ?? AppDatabase(),
+        _servicioPermisos = servicioPermisos ?? ServicioPermisos(),
+        _connectivity = connectivity ?? Connectivity() {
+    _servicioSincronizacion = ServicioSincronizacion(
+      db: _db,
+      database: _database,
+    );
+  }
 
-  /// Permite observar los préstamos que todavía pueden ser devueltos.
-  /// Se consideran los préstamos activos o vencidos.
   Stream<QuerySnapshot<Map<String, dynamic>>> obtenerPrestamosPorDevolver() {
     return _db
         .collection('prestamos')
@@ -26,15 +47,19 @@ class ServicioDevoluciones {
         .snapshots();
   }
 
-  /// Confirma la devolución de un activo prestado.
-  ///
-  /// Reglas implementadas:
-  /// - Solo el encargado de inventario con cuenta activa puede confirmar.
-  /// - Si hay novedad, la descripción es obligatoria.
-  /// - Sin novedad: el activo vuelve a disponible.
-  /// - Con novedad: el activo queda en mantenimiento y se crea un registro.
-  /// - Toda devolución genera historial.
-  Future<void> confirmarDevolucion({
+  Stream<List<DevolucionesPendiente>> observarPendientes() {
+    return _servicioSincronizacion.observarPendientes();
+  }
+
+  Future<int> contarPendientes() {
+    return _servicioSincronizacion.contarPendientes();
+  }
+
+  Future<ResultadoSincronizacion> sincronizarPendientes() {
+    return _servicioSincronizacion.sincronizarPendientes();
+  }
+
+  Future<ResultadoDevolucion> confirmarDevolucion({
     required String prestamoId,
     required String activoId,
     required PerfilUsuario encargado,
@@ -47,7 +72,7 @@ class ServicioDevoluciones {
       );
     }
 
-    final String novedad = descripcionNovedad?.trim() ?? '';
+    final novedad = descripcionNovedad?.trim() ?? '';
 
     if (tieneNovedad && novedad.isEmpty) {
       throw Exception(
@@ -55,107 +80,102 @@ class ServicioDevoluciones {
       );
     }
 
-    final DocumentReference<Map<String, dynamic>> prestamoRef =
-        _db.collection('prestamos').doc(prestamoId);
+    final devolucion = Devolucion(
+      id: _db.collection('devoluciones').doc().id,
+      prestamoId: prestamoId,
+      activoId: activoId,
+      recibidoPor: encargado.uid,
+      fechaDevolucion: DateTime.now(),
+      tieneNovedad: tieneNovedad,
+      descripcionNovedad: tieneNovedad ? novedad : null,
+      syncStatus: SyncStatus.synced,
+    );
 
-    final DocumentReference<Map<String, dynamic>> activoRef =
-        _db.collection('activos').doc(activoId);
+    final hayConexion = await _hayConexionDeRed();
 
-    final DocumentReference<Map<String, dynamic>> devolucionRef =
-        _db.collection('devoluciones').doc();
-
-    final DocumentReference<Map<String, dynamic>> historialRef =
-        _db.collection('historial').doc();
-
-    final DocumentReference<Map<String, dynamic>>? mantenimientoRef =
-        tieneNovedad ? _db.collection('mantenimientos').doc() : null;
-
-    final DateTime fechaActual = DateTime.now();
-
-    await _db.runTransaction((transaction) async {
-      final prestamoDocumento = await transaction.get(prestamoRef);
-      final activoDocumento = await transaction.get(activoRef);
-
-      if (!prestamoDocumento.exists) {
-        throw Exception('El préstamo seleccionado no existe.');
-      }
-
-      if (!activoDocumento.exists) {
-        throw Exception('El activo seleccionado no existe.');
-      }
-
-      final String estadoPrestamo =
-          (prestamoDocumento.data()?['estado'] ?? '').toString();
-
-      if (estadoPrestamo != LoanStatus.activo.name &&
-          estadoPrestamo != LoanStatus.vencido.name) {
-        throw Exception('El préstamo ya fue devuelto o no puede procesarse.');
-      }
-
-      final String estadoActivo =
-          (activoDocumento.data()?['estado'] ?? '').toString();
-
-      if (estadoActivo != AssetStatus.prestado.name &&
-          estadoActivo != AssetStatus.vencido.name) {
-        throw Exception(
-          'El activo no está registrado como prestado o vencido.',
-        );
-      }
-
-      final devolucion = Devolucion(
-        id: devolucionRef.id,
-        prestamoId: prestamoId,
-        activoId: activoId,
-        recibidoPor: encargado.uid,
-        fechaDevolucion: fechaActual,
-        tieneNovedad: tieneNovedad,
-        descripcionNovedad: tieneNovedad ? novedad : null,
-        syncStatus: SyncStatus.synced,
+    if (!hayConexion) {
+      await _guardarPendiente(
+        devolucion,
+        'Sin conexión a internet.',
       );
 
-      transaction.set(devolucionRef, devolucion.toMap());
+      return ResultadoDevolucion(
+        sincronizada: false,
+        mensaje:
+            'Sin conexión. La devolución quedó pendiente de sincronización.',
+      );
+    }
 
-      transaction.update(prestamoRef, {
-        'estado': LoanStatus.devuelto.name,
-        'fechaDevolucion': Timestamp.fromDate(fechaActual),
-      });
-
-      if (tieneNovedad) {
-        transaction.update(activoRef, {
-          'estado': AssetStatus.mantenimiento.name,
-        });
-
-        final mantenimiento = Mantenimiento(
-          id: mantenimientoRef!.id,
-          activoId: activoId,
-          devolucionId: devolucionRef.id,
-          descripcion: novedad,
-          creadoPor: encargado.uid,
-          fechaCreacion: fechaActual,
-          estado: 'pendiente',
-          syncStatus: SyncStatus.synced,
-        );
-
-        transaction.set(mantenimientoRef, mantenimiento.toMap());
-      } else {
-        transaction.update(activoRef, {
-          'estado': AssetStatus.disponible.name,
-        });
-      }
-
-      final historial = Historial(
-        id: historialRef.id,
-        entidadId: activoId,
-        tipoEntidad: 'activo',
-        accion: tieneNovedad
-            ? 'Devolución confirmada con novedad. Activo enviado a mantenimiento.'
-            : 'Devolución confirmada sin novedad. Activo disponible nuevamente.',
-        usuarioId: encargado.uid,
-        fechaCreacion: fechaActual,
-        syncStatus: SyncStatus.synced,
+    try {
+      await _servicioSincronizacion.enviarDevolucionAFirestore(
+        devolucion,
       );
 
-      transaction.set(historialRef, historial.toMap());
-    });
+      return ResultadoDevolucion(
+        sincronizada: true,
+        mensaje: tieneNovedad
+            ? 'Devolución confirmada. El activo pasó a mantenimiento.'
+            : 'Devolución confirmada. El activo está disponible.',
+      );
+    } catch (error) {
+      if (!_esErrorTemporalDeConexion(error)) {
+        rethrow;
+      }
+
+      await _guardarPendiente(
+        devolucion,
+        error.toString(),
+      );
+
+      return ResultadoDevolucion(
+        sincronizada: false,
+        mensaje:
+            'Error temporal de conexión. La devolución quedó pendiente de sincronización.',
+      );
+    }
+  }
+
+  Future<bool> _hayConexionDeRed() async {
+    final resultados = await _connectivity.checkConnectivity();
+
+    return !resultados.contains(ConnectivityResult.none);
+  }
+
+  Future<void> _guardarPendiente(
+    Devolucion devolucion,
+    String mensajeError,
+  ) async {
+    await _database.guardarDevolucionPendiente(
+      id: devolucion.id,
+      prestamoId: devolucion.prestamoId,
+      activoId: devolucion.activoId,
+      recibidoPor: devolucion.recibidoPor,
+      fechaDevolucion: devolucion.fechaDevolucion,
+      tieneNovedad: devolucion.tieneNovedad,
+      descripcionNovedad: devolucion.descripcionNovedad,
+      mensajeError: mensajeError,
+    );
+  }
+
+  bool _esErrorTemporalDeConexion(Object error) {
+    if (error is FirebaseException) {
+      return error.code == 'unavailable' ||
+          error.code == 'deadline-exceeded' ||
+          error.code == 'network-request-failed' ||
+          error.code == 'unknown';
+    }
+
+    final mensaje = error.toString().toLowerCase();
+
+    return mensaje.contains('network') ||
+        mensaje.contains('internet') ||
+        mensaje.contains('failed to fetch') ||
+        mensaje.contains('unavailable') ||
+        mensaje.contains('connection') ||
+        mensaje.contains('converted future');
+  }
+
+  Future<void> cerrarBaseLocal() {
+    return _database.close();
   }
 }
