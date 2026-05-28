@@ -5,8 +5,18 @@ import '../models/activo.dart';
 import '../services/servicio_activos.dart';
 import '../services/servicio_prestamos.dart';
 
-class ActivosPage extends StatelessWidget {
+class ActivosPage extends StatefulWidget {
   const ActivosPage({super.key});
+
+  @override
+  State<ActivosPage> createState() => _ActivosPageState();
+}
+
+class _ActivosPageState extends State<ActivosPage> {
+  final ServicioActivos servicioActivos = ServicioActivos();
+  final ServicioPrestamos servicioPrestamos = ServicioPrestamos();
+
+  String categoriaSeleccionada = 'todos';
 
   Color _colorEstado(String estado) {
     switch (estado) {
@@ -59,11 +69,50 @@ class ActivosPage extends StatelessWidget {
     }
   }
 
+  String _categoriaNormalizada(String categoria) {
+  String texto = categoria.trim().toLowerCase();
+
+  if (texto.isEmpty) {
+    return 'sin categoria';
+  }
+
+  texto = texto
+      .replaceAll('á', 'a')
+      .replaceAll('é', 'e')
+      .replaceAll('í', 'i')
+      .replaceAll('ó', 'o')
+      .replaceAll('ú', 'u');
+
+  return texto;
+}
+
+  String _textoCategoria(String categoria) {
+    switch (categoria.toLowerCase()) {
+      case 'tablets':
+        return 'Tablets';
+      case 'audio':
+        return 'Audio';
+      case 'electronica':
+        return 'Electrónica';
+      case 'computadoras':
+        return 'Computadoras';
+      case 'tecnologicos':
+        return 'Tecnológicos';
+      case 'sin categoria':
+        return 'Sin categoría';
+      default:
+        if (categoria.isEmpty) {
+          return categoria;
+        }
+
+        return '${categoria[0].toUpperCase()}${categoria.substring(1)}';
+    }
+  }
+
   Future<void> _solicitarPrestamo(
     BuildContext context,
     Activo activo,
     String usuarioId,
-    ServicioPrestamos servicioPrestamos,
   ) async {
     try {
       await servicioPrestamos.solicitarPrestamo(activo.id, usuarioId);
@@ -79,8 +128,7 @@ class ActivosPage extends StatelessWidget {
     } catch (error) {
       if (!context.mounted) return;
 
-      final mensaje =
-          error.toString().replaceFirst('Exception: ', '');
+      final mensaje = error.toString().replaceFirst('Exception: ', '');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -91,10 +139,169 @@ class ActivosPage extends StatelessWidget {
     }
   }
 
+  Widget _filtrosCategorias(
+    List<Activo> activos,
+    List<String> categorias,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.grey.shade300,
+          ),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            ChoiceChip(
+              label: Text('Todos (${activos.length})'),
+              selected: categoriaSeleccionada == 'todos',
+              onSelected: (seleccionado) {
+                if (seleccionado) {
+                  setState(() {
+                    categoriaSeleccionada = 'todos';
+                  });
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+            ...categorias.map((categoria) {
+              final cantidad = activos
+                  .where(
+                    (activo) =>
+                        _categoriaNormalizada(activo.categoria) ==
+                        categoria,
+                  )
+                  .length;
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(
+                    '${_textoCategoria(categoria)} ($cantidad)',
+                  ),
+                  selected: categoriaSeleccionada == categoria,
+                  onSelected: (seleccionado) {
+                    if (seleccionado) {
+                      setState(() {
+                        categoriaSeleccionada = categoria;
+                      });
+                    }
+                  },
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _listaActivos(
+    List<Activo> activos,
+    String usuarioId,
+  ) {
+    if (activos.isEmpty) {
+      return const Center(
+        child: Text(
+          'No hay activos en esta categoría.',
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: activos.length,
+      separatorBuilder: (context, index) =>
+          const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final activo = activos[index];
+
+        final disponible = activo.estado == 'disponible' &&
+            activo.cantidadDisponible > 0;
+
+        final sinUnidades = activo.estado == 'disponible' &&
+            activo.cantidadDisponible <= 0;
+
+        final colorEstado = sinUnidades
+            ? Colors.grey
+            : _colorEstado(activo.estado);
+
+        final textoEstado = sinUnidades
+            ? 'Sin unidades'
+            : _textoEstado(activo.estado);
+
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 6,
+          ),
+          leading: Icon(
+            sinUnidades
+                ? Icons.inventory_2_outlined
+                : _iconoEstado(activo.estado),
+            color: colorEstado,
+          ),
+          title: Text(
+            activo.nombre,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: disponible ? Colors.black87 : Colors.grey,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              Text(
+                '${_textoCategoria(_categoriaNormalizada(activo.categoria))} • ${activo.descripcion}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Disponibles: ${activo.cantidadDisponible} de ${activo.cantidadTotal}',
+                style: TextStyle(
+                  color: activo.cantidadDisponible > 0
+                      ? Colors.green.shade700
+                      : Colors.red.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          trailing: Chip(
+            label: Text(
+              textoEstado,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+              ),
+            ),
+            backgroundColor: colorEstado,
+            padding: EdgeInsets.zero,
+          ),
+          enabled: disponible,
+          onTap: disponible
+              ? () => _solicitarPrestamo(
+                    context,
+                    activo,
+                    usuarioId,
+                  )
+              : null,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final servicioActivos = ServicioActivos();
-    final servicioPrestamos = ServicioPrestamos();
     final usuarioId = FirebaseAuth.instance.currentUser?.uid;
 
     if (usuarioId == null) {
@@ -163,55 +370,34 @@ class ActivosPage extends StatelessWidget {
 
           final activos = snapshot.data!;
 
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: activos.length,
-            separatorBuilder: (context, index) =>
-                const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final activo = activos[index];
-              final disponible = activo.estado == 'disponible';
-              final colorEstado = _colorEstado(activo.estado);
+          final categorias = activos
+              .map(
+                (activo) => _categoriaNormalizada(activo.categoria),
+              )
+              .toSet()
+              .toList()
+            ..sort();
 
-              return ListTile(
-                leading: Icon(
-                  _iconoEstado(activo.estado),
-                  color: colorEstado,
+          final activosFiltrados = categoriaSeleccionada == 'todos'
+              ? activos
+              : activos
+                  .where(
+                    (activo) =>
+                        _categoriaNormalizada(activo.categoria) ==
+                        categoriaSeleccionada,
+                  )
+                  .toList();
+
+          return Column(
+            children: [
+              _filtrosCategorias(activos, categorias),
+              Expanded(
+                child: _listaActivos(
+                  activosFiltrados,
+                  usuarioId,
                 ),
-                title: Text(
-                  activo.nombre,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: disponible ? Colors.black87 : Colors.grey,
-                  ),
-                ),
-                subtitle: Text(
-                  '${activo.categoria}  •  ${activo.descripcion}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: Chip(
-                  label: Text(
-                    _textoEstado(activo.estado),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                    ),
-                  ),
-                  backgroundColor: colorEstado,
-                  padding: EdgeInsets.zero,
-                ),
-                enabled: disponible,
-                onTap: disponible
-                    ? () => _solicitarPrestamo(
-                          context,
-                          activo,
-                          usuarioId,
-                          servicioPrestamos,
-                        )
-                    : null,
-              );
-            },
+              ),
+            ],
           );
         },
       ),
