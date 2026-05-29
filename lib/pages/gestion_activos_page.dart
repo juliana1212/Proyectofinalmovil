@@ -20,6 +20,14 @@ class _GestionActivosPageState extends State<GestionActivosPage> {
   late Future<PerfilUsuario?> perfilFuture;
   bool procesando = false;
 
+  final List<String> categoriasDisponibles = [
+    'tablets',
+    'audio',
+    'electronica',
+    'computadoras',
+    'tecnologicos',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -114,6 +122,208 @@ class _GestionActivosPageState extends State<GestionActivosPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(mensajeExito),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      final mensaje = error.toString().replaceFirst('Exception: ', '');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mensaje),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          procesando = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _abrirFormularioRegistro() async {
+    final referenciaController = TextEditingController();
+    final nombreController = TextEditingController();
+    final descripcionController = TextEditingController();
+    final cantidadController = TextEditingController();
+
+    String categoriaSeleccionada = 'tablets';
+    String? mensajeError;
+
+    final datos = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Registrar activo'),
+              content: SizedBox(
+                width: 460,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Si la referencia ya existe, las unidades se sumarán '
+                        'al inventario registrado.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      TextField(
+                        controller: referenciaController,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: 'Referencia',
+                          hintText: 'Ejemplo: TAB-SAM-A9',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: nombreController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre del activo',
+                          hintText: 'Ejemplo: Tablet Samsung A9',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: descripcionController,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Descripción',
+                          hintText: 'Ejemplo: Tablet para salas de estudio',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        initialValue: categoriaSeleccionada,
+                        decoration: const InputDecoration(
+                          labelText: 'Categoría',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: categoriasDisponibles.map((categoria) {
+                          return DropdownMenuItem<String>(
+                            value: categoria,
+                            child: Text(_textoCategoria(categoria)),
+                          );
+                        }).toList(),
+                        onChanged: (valor) {
+                          if (valor != null) {
+                            setDialogState(() {
+                              categoriaSeleccionada = valor;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: cantidadController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad a ingresar',
+                          hintText: 'Ejemplo: 3',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      if (mensajeError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          mensajeError!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    final referencia =
+                        referenciaController.text.trim();
+                    final nombre = nombreController.text.trim();
+                    final descripcion =
+                        descripcionController.text.trim();
+                    final cantidad =
+                        int.tryParse(cantidadController.text.trim());
+
+                    if (referencia.isEmpty ||
+                        nombre.isEmpty ||
+                        descripcion.isEmpty ||
+                        cantidad == null ||
+                        cantidad <= 0) {
+                      setDialogState(() {
+                        mensajeError =
+                            'Completa todos los campos y escribe una cantidad válida.';
+                      });
+                      return;
+                    }
+
+                    Navigator.pop(dialogContext, {
+                      'referencia': referencia,
+                      'nombre': nombre,
+                      'descripcion': descripcion,
+                      'categoria': categoriaSeleccionada,
+                      'cantidad': cantidad,
+                    });
+                  },
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    referenciaController.dispose();
+    nombreController.dispose();
+    descripcionController.dispose();
+    cantidadController.dispose();
+
+    if (datos == null) {
+      return;
+    }
+
+    setState(() {
+      procesando = true;
+    });
+
+    try {
+      final resultado = await servicioActivos.registrarOSumarUnidades(
+        referencia: datos['referencia'] as String,
+        nombre: datos['nombre'] as String,
+        descripcion: datos['descripcion'] as String,
+        categoria: datos['categoria'] as String,
+        cantidad: datos['cantidad'] as int,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(resultado.mensaje),
           backgroundColor: Colors.green,
         ),
       );
@@ -332,7 +542,7 @@ class _GestionActivosPageState extends State<GestionActivosPage> {
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
           itemCount: activos.length,
           separatorBuilder: (context, index) {
             return const SizedBox(height: 12);
@@ -477,6 +687,11 @@ class _GestionActivosPageState extends State<GestionActivosPage> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Gestión de inventario'),
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: procesando ? null : _abrirFormularioRegistro,
+            icon: const Icon(Icons.add),
+            label: const Text('Registrar activo'),
           ),
           body: _listaActivos(),
         );

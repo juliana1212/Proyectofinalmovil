@@ -1,11 +1,21 @@
 // lib/services/servicio_activos.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/activo.dart';
- 
+
+class ResultadoRegistroActivo {
+  final bool creadoNuevo;
+  final String mensaje;
+
+  ResultadoRegistroActivo({
+    required this.creadoNuevo,
+    required this.mensaje,
+  });
+}
+
 class ServicioActivos {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final String _collection = 'activos';
- 
+
   /// Stream en tiempo real de todos los activos
   Stream<List<Activo>> obtenerActivos() {
     return _db.collection(_collection).snapshots().map(
@@ -14,7 +24,7 @@ class ServicioActivos {
               .toList(),
         );
   }
- 
+
   // Obtiene activos pertenecientes a una categoria.
   Stream<List<Activo>> obtenerActivosPorCategoria(String categoria) {
     return _db
@@ -27,14 +37,14 @@ class ServicioActivos {
               .toList(),
         );
   }
- 
+
   /// Obtiene un activo puntual por su ID (Future, no stream)
   Future<Activo?> obtenerActivoPorId(String id) async {
     final doc = await _db.collection(_collection).doc(id).get();
     if (!doc.exists) return null;
     return Activo.fromMap(doc.id, doc.data()!);
   }
- 
+
   /// Guarda (crea o sobreescribe) un activo
   Future<void> guardarActivo(Activo activo) async {
     if (activo.referencia.trim().isEmpty) {
@@ -72,7 +82,129 @@ class ServicioActivos {
 
     await _db.collection(_collection).doc(activo.id).set(activo.toMap());
   }
- 
+
+  /// Registra un activo nuevo o suma unidades si la referencia ya existe.
+  Future<ResultadoRegistroActivo> registrarOSumarUnidades({
+    required String referencia,
+    required String nombre,
+    required String descripcion,
+    required String categoria,
+    required int cantidad,
+  }) async {
+    final referenciaNormalizada = referencia.trim().toUpperCase();
+    final nombreLimpio = nombre.trim();
+    final descripcionLimpia = descripcion.trim();
+    final categoriaNormalizada = _normalizarCategoria(categoria);
+
+    if (referenciaNormalizada.isEmpty) {
+      throw Exception('La referencia es obligatoria.');
+    }
+
+    if (nombreLimpio.isEmpty) {
+      throw Exception('El nombre del activo es obligatorio.');
+    }
+
+    if (categoriaNormalizada.isEmpty) {
+      throw Exception('La categoria es obligatoria.');
+    }
+
+    if (cantidad <= 0) {
+      throw Exception('La cantidad a registrar debe ser mayor que cero.');
+    }
+
+    // Se revisan las referencias normalizadas para evitar duplicados
+    // por diferencias entre mayúsculas, minúsculas o espacios.
+    final documentos = await _db.collection(_collection).get();
+
+    DocumentReference<Map<String, dynamic>>? activoExistenteRef;
+
+    for (final documento in documentos.docs) {
+      final referenciaGuardada =
+          (documento.data()['referencia'] ?? '')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+      if (referenciaGuardada == referenciaNormalizada) {
+        activoExistenteRef = documento.reference;
+        break;
+      }
+    }
+
+    final referenciaEncontrada = activoExistenteRef;
+
+    if (referenciaEncontrada != null) {
+      await _db.runTransaction((transaction) async {
+        final documento = await transaction.get(referenciaEncontrada);
+
+        if (!documento.exists || documento.data() == null) {
+          throw Exception('No fue posible encontrar el activo existente.');
+        }
+
+        final datos = documento.data()!;
+
+        final cantidadTotalActual =
+            (datos['cantidadTotal'] as num?)?.toInt() ?? 1;
+
+        final cantidadDisponibleActual =
+            (datos['cantidadDisponible'] as num?)?.toInt() ?? 0;
+
+        final cantidadMantenimiento =
+            (datos['cantidadMantenimiento'] as num?)?.toInt() ?? 0;
+
+        final cantidadBaja =
+            (datos['cantidadBaja'] as num?)?.toInt() ?? 0;
+
+        final nuevaCantidadTotal = cantidadTotalActual + cantidad;
+        final nuevaCantidadDisponible =
+            cantidadDisponibleActual + cantidad;
+
+        final nuevoEstado = _calcularEstado(
+          cantidadTotal: nuevaCantidadTotal,
+          cantidadDisponible: nuevaCantidadDisponible,
+          cantidadMantenimiento: cantidadMantenimiento,
+          cantidadBaja: cantidadBaja,
+        );
+
+        transaction.update(referenciaEncontrada, {
+          'referencia': referenciaNormalizada,
+          'cantidadTotal': nuevaCantidadTotal,
+          'cantidadDisponible': nuevaCantidadDisponible,
+          'estado': nuevoEstado,
+        });
+      });
+
+      return ResultadoRegistroActivo(
+        creadoNuevo: false,
+        mensaje:
+            'Se agregaron $cantidad unidad(es) al activo existente.',
+      );
+    }
+
+    final nuevoDocumento = _db.collection(_collection).doc();
+
+    final nuevoActivo = Activo(
+      id: nuevoDocumento.id,
+      referencia: referenciaNormalizada,
+      nombre: nombreLimpio,
+      descripcion: descripcionLimpia,
+      categoria: categoriaNormalizada,
+      estado: 'disponible',
+      cantidadTotal: cantidad,
+      cantidadDisponible: cantidad,
+      cantidadMantenimiento: 0,
+      cantidadBaja: 0,
+      syncStatus: 'synced',
+    );
+
+    await nuevoDocumento.set(nuevoActivo.toMap());
+
+    return ResultadoRegistroActivo(
+      creadoNuevo: true,
+      mensaje: 'Activo registrado correctamente.',
+    );
+  }
+
   /// Cambia el estado de un activo ("disponible", "prestado", "vencido", etc.)
   Future<void> cambiarEstado(String id, String nuevoEstado) async {
     await _db
@@ -81,7 +213,6 @@ class ServicioActivos {
         .update({'estado': nuevoEstado});
   }
 
-  /// Envía una unidad disponible del activo a mantenimiento
   /// Envía una unidad disponible del activo a mantenimiento
   Future<void> enviarAMantenimiento(String id) async {
     final referenciaActivo = _db.collection(_collection).doc(id);
@@ -227,6 +358,18 @@ class ServicioActivos {
         'cantidadMantenimiento': nuevaCantidadMantenimiento,
       });
     });
+  }
+
+  /// Normaliza las categorias que se guardan en Firebase.
+  String _normalizarCategoria(String categoria) {
+    return categoria
+        .trim()
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u');
   }
 
   /// Calcula el estado general visible de la referencia según sus unidades.
