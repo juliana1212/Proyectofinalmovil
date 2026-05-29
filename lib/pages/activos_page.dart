@@ -322,6 +322,13 @@ class _ActivosPageState extends State<ActivosPage> {
         title: const Text('Activos disponibles'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.inventory_outlined),
+            tooltip: 'Gestión de inventario',
+            onPressed: () {
+              Navigator.pushNamed(context, '/gestion-activos');
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.assignment_return_outlined),
             tooltip: 'Devoluciones',
             onPressed: () {
