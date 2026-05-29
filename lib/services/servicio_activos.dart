@@ -37,6 +37,10 @@ class ServicioActivos {
  
   /// Guarda (crea o sobreescribe) un activo
   Future<void> guardarActivo(Activo activo) async {
+    if (activo.referencia.trim().isEmpty) {
+      throw Exception('La referencia del activo es obligatoria.');
+    }
+
     if (activo.nombre.trim().isEmpty) {
       throw Exception('El nombre del activo es obligatorio.');
     }
@@ -49,13 +53,20 @@ class ServicioActivos {
       throw Exception('La cantidad total debe ser mayor que cero.');
     }
 
-    if (activo.cantidadDisponible < 0) {
-      throw Exception('La cantidad disponible no puede ser negativa.');
+    if (activo.cantidadDisponible < 0 ||
+        activo.cantidadMantenimiento < 0 ||
+        activo.cantidadBaja < 0) {
+      throw Exception('Las cantidades no pueden ser negativas.');
     }
 
-    if (activo.cantidadDisponible > activo.cantidadTotal) {
+    final cantidadesFueraDePrestamo = activo.cantidadDisponible +
+        activo.cantidadMantenimiento +
+        activo.cantidadBaja;
+
+    if (cantidadesFueraDePrestamo > activo.cantidadTotal) {
       throw Exception(
-        'La cantidad disponible no puede superar la cantidad total.',
+        'La suma de cantidades disponibles, en mantenimiento y dadas '
+        'de baja no puede superar la cantidad total.',
       );
     }
 
@@ -70,7 +81,8 @@ class ServicioActivos {
         .update({'estado': nuevoEstado});
   }
 
-  /// Envía un activo a mantenimiento si no se encuentra prestado
+  /// Envía una unidad disponible del activo a mantenimiento
+  /// Envía una unidad disponible del activo a mantenimiento
   Future<void> enviarAMantenimiento(String id) async {
     final referenciaActivo = _db.collection(_collection).doc(id);
 
@@ -82,30 +94,44 @@ class ServicioActivos {
       }
 
       final datos = doc.data()!;
-      final estadoActual = datos['estado'] ?? '';
-      final cantidadTotal = datos['cantidadTotal'] ?? 1;
-      final cantidadDisponible = datos['cantidadDisponible'] ?? 1;
 
-      if (estadoActual == 'dadoDeBaja') {
+      final cantidadTotal =
+          (datos['cantidadTotal'] as num?)?.toInt() ?? 1;
+
+      final cantidadDisponible =
+          (datos['cantidadDisponible'] as num?)?.toInt() ?? 0;
+
+      final cantidadMantenimiento =
+          (datos['cantidadMantenimiento'] as num?)?.toInt() ?? 0;
+
+      final cantidadBaja =
+          (datos['cantidadBaja'] as num?)?.toInt() ?? 0;
+
+      if (cantidadDisponible <= 0) {
         throw Exception(
-          'El activo ya fue dado de baja y no puede enviarse a mantenimiento.',
+          'No hay unidades disponibles para enviar a mantenimiento.',
         );
       }
 
-      if (cantidadDisponible < cantidadTotal) {
-        throw Exception(
-          'No se puede enviar a mantenimiento porque el activo se encuentra prestado.',
-        );
-      }
+      final nuevaCantidadDisponible = cantidadDisponible - 1;
+      final nuevaCantidadMantenimiento = cantidadMantenimiento + 1;
+
+      final nuevoEstado = _calcularEstado(
+        cantidadTotal: cantidadTotal,
+        cantidadDisponible: nuevaCantidadDisponible,
+        cantidadMantenimiento: nuevaCantidadMantenimiento,
+        cantidadBaja: cantidadBaja,
+      );
 
       transaction.update(referenciaActivo, {
-        'estado': 'mantenimiento',
-        'cantidadDisponible': 0,
+        'estado': nuevoEstado,
+        'cantidadDisponible': nuevaCantidadDisponible,
+        'cantidadMantenimiento': nuevaCantidadMantenimiento,
       });
     });
   }
 
-  /// Da de baja un activo si no se encuentra prestado
+  /// Da de baja una unidad disponible del activo
   Future<void> darDeBaja(String id) async {
     final referenciaActivo = _db.collection(_collection).doc(id);
 
@@ -117,28 +143,44 @@ class ServicioActivos {
       }
 
       final datos = doc.data()!;
-      final estadoActual = datos['estado'] ?? '';
-      final cantidadTotal = datos['cantidadTotal'] ?? 1;
-      final cantidadDisponible = datos['cantidadDisponible'] ?? 1;
 
-      if (estadoActual == 'dadoDeBaja') {
-        throw Exception('El activo ya fue dado de baja.');
-      }
+      final cantidadTotal =
+          (datos['cantidadTotal'] as num?)?.toInt() ?? 1;
 
-      if (cantidadDisponible < cantidadTotal) {
+      final cantidadDisponible =
+          (datos['cantidadDisponible'] as num?)?.toInt() ?? 0;
+
+      final cantidadMantenimiento =
+          (datos['cantidadMantenimiento'] as num?)?.toInt() ?? 0;
+
+      final cantidadBaja =
+          (datos['cantidadBaja'] as num?)?.toInt() ?? 0;
+
+      if (cantidadDisponible <= 0) {
         throw Exception(
-          'No se puede dar de baja porque el activo se encuentra prestado.',
+          'No hay unidades disponibles para dar de baja.',
         );
       }
 
+      final nuevaCantidadDisponible = cantidadDisponible - 1;
+      final nuevaCantidadBaja = cantidadBaja + 1;
+
+      final nuevoEstado = _calcularEstado(
+        cantidadTotal: cantidadTotal,
+        cantidadDisponible: nuevaCantidadDisponible,
+        cantidadMantenimiento: cantidadMantenimiento,
+        cantidadBaja: nuevaCantidadBaja,
+      );
+
       transaction.update(referenciaActivo, {
-        'estado': 'dadoDeBaja',
-        'cantidadDisponible': 0,
+        'estado': nuevoEstado,
+        'cantidadDisponible': nuevaCantidadDisponible,
+        'cantidadBaja': nuevaCantidadBaja,
       });
     });
   }
 
-  /// Habilita nuevamente un activo que estaba en mantenimiento
+  /// Habilita una unidad que estaba en mantenimiento
   Future<void> habilitarActivo(String id) async {
     final referenciaActivo = _db.collection(_collection).doc(id);
 
@@ -150,25 +192,71 @@ class ServicioActivos {
       }
 
       final datos = doc.data()!;
-      final estadoActual = datos['estado'] ?? '';
-      final cantidadTotal = datos['cantidadTotal'] ?? 1;
 
-      if (estadoActual == 'dadoDeBaja') {
+      final cantidadTotal =
+          (datos['cantidadTotal'] as num?)?.toInt() ?? 1;
+
+      final cantidadDisponible =
+          (datos['cantidadDisponible'] as num?)?.toInt() ?? 0;
+
+      final cantidadMantenimiento =
+          (datos['cantidadMantenimiento'] as num?)?.toInt() ?? 0;
+
+      final cantidadBaja =
+          (datos['cantidadBaja'] as num?)?.toInt() ?? 0;
+
+      if (cantidadMantenimiento <= 0) {
         throw Exception(
-          'Un activo dado de baja no puede volver a habilitarse.',
+          'No hay unidades en mantenimiento para habilitar.',
         );
       }
 
-      if (estadoActual != 'mantenimiento') {
-        throw Exception(
-          'El activo no se encuentra en mantenimiento.',
-        );
-      }
+      final nuevaCantidadDisponible = cantidadDisponible + 1;
+      final nuevaCantidadMantenimiento = cantidadMantenimiento - 1;
+
+      final nuevoEstado = _calcularEstado(
+        cantidadTotal: cantidadTotal,
+        cantidadDisponible: nuevaCantidadDisponible,
+        cantidadMantenimiento: nuevaCantidadMantenimiento,
+        cantidadBaja: cantidadBaja,
+      );
 
       transaction.update(referenciaActivo, {
-        'estado': 'disponible',
-        'cantidadDisponible': cantidadTotal,
+        'estado': nuevoEstado,
+        'cantidadDisponible': nuevaCantidadDisponible,
+        'cantidadMantenimiento': nuevaCantidadMantenimiento,
       });
     });
+  }
+
+  /// Calcula el estado general visible de la referencia según sus unidades.
+  String _calcularEstado({
+    required int cantidadTotal,
+    required int cantidadDisponible,
+    required int cantidadMantenimiento,
+    required int cantidadBaja,
+  }) {
+    final cantidadPrestada = cantidadTotal -
+        cantidadDisponible -
+        cantidadMantenimiento -
+        cantidadBaja;
+
+    if (cantidadDisponible > 0) {
+      return 'disponible';
+    }
+
+    if (cantidadPrestada > 0) {
+      return 'prestado';
+    }
+
+    if (cantidadMantenimiento > 0) {
+      return 'mantenimiento';
+    }
+
+    if (cantidadBaja >= cantidadTotal) {
+      return 'dadoDeBaja';
+    }
+
+    return 'disponible';
   }
 }

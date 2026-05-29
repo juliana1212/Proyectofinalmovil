@@ -115,6 +115,14 @@ class ServicioSincronizacion {
           (datosActivo['cantidadDisponible'] as num?)?.toInt() ??
               (estadoActivo == AssetStatus.disponible.name ? 1 : 0);
 
+      final int cantidadMantenimiento =
+          (datosActivo['cantidadMantenimiento'] as num?)?.toInt() ??
+              (estadoActivo == AssetStatus.mantenimiento.name ? 1 : 0);
+
+      final int cantidadBaja =
+          (datosActivo['cantidadBaja'] as num?)?.toInt() ??
+              (estadoActivo == AssetStatus.dadoDeBaja.name ? 1 : 0);
+
       if (estadoActivo == AssetStatus.dadoDeBaja.name) {
         throw Exception(
           'No se puede registrar la devolución porque el activo fue dado de baja.',
@@ -139,18 +147,24 @@ class ServicioSincronizacion {
       String accionHistorial;
 
       if (devolucion.tieneNovedad) {
-        // La unidad regresó con una novedad, por lo tanto no aumenta
-        // la cantidad disponible. Si aún existen otras unidades libres,
-        // el producto continúa disponible.
-        final nuevoEstado = cantidadDisponible > 0
-            ? AssetStatus.disponible.name
-            : AssetStatus.mantenimiento.name;
+        // La unidad regresó con novedad:
+        // no aumenta la cantidad disponible y pasa a mantenimiento.
+        final nuevaCantidadMantenimiento =
+            cantidadMantenimiento + 1;
+
+        final nuevoEstado = _calcularEstado(
+          cantidadTotal: cantidadTotal,
+          cantidadDisponible: cantidadDisponible,
+          cantidadMantenimiento: nuevaCantidadMantenimiento,
+          cantidadBaja: cantidadBaja,
+        );
 
         transaction.update(
           activoRef,
           {
             'estado': nuevoEstado,
             'cantidadDisponible': cantidadDisponible,
+            'cantidadMantenimiento': nuevaCantidadMantenimiento,
           },
         );
 
@@ -170,27 +184,34 @@ class ServicioSincronizacion {
           mantenimiento.toMap(),
         );
 
-        accionHistorial = cantidadDisponible > 0
-            ? 'Devolución confirmada con novedad. Una unidad fue enviada a mantenimiento.'
-            : 'Devolución confirmada con novedad. Activo enviado a mantenimiento.';
+        accionHistorial =
+            'Devolución confirmada con novedad. Una unidad fue enviada a mantenimiento.';
       } else {
-        // La unidad fue devuelta correctamente, por lo tanto regresa
-        // al inventario disponible sin superar la cantidad total.
+        // La unidad fue devuelta correctamente:
+        // vuelve al inventario disponible sin superar la cantidad total.
         final nuevaCantidadDisponible =
             cantidadDisponible < cantidadTotal
                 ? cantidadDisponible + 1
                 : cantidadTotal;
 
+        final nuevoEstado = _calcularEstado(
+          cantidadTotal: cantidadTotal,
+          cantidadDisponible: nuevaCantidadDisponible,
+          cantidadMantenimiento: cantidadMantenimiento,
+          cantidadBaja: cantidadBaja,
+        );
+
         transaction.update(
           activoRef,
           {
-            'estado': AssetStatus.disponible.name,
+            'estado': nuevoEstado,
             'cantidadDisponible': nuevaCantidadDisponible,
+            'cantidadMantenimiento': cantidadMantenimiento,
           },
         );
 
         accionHistorial =
-            'Devolución confirmada sin novedad. Activo disponible nuevamente.';
+            'Devolución confirmada sin novedad. Una unidad volvió al inventario disponible.';
       }
 
       final historial = Historial(
@@ -208,6 +229,37 @@ class ServicioSincronizacion {
         historial.toMap(),
       );
     });
+  }
+
+  /// Calcula el estado general visible del producto según sus unidades.
+  String _calcularEstado({
+    required int cantidadTotal,
+    required int cantidadDisponible,
+    required int cantidadMantenimiento,
+    required int cantidadBaja,
+  }) {
+    final cantidadPrestada = cantidadTotal -
+        cantidadDisponible -
+        cantidadMantenimiento -
+        cantidadBaja;
+
+    if (cantidadDisponible > 0) {
+      return AssetStatus.disponible.name;
+    }
+
+    if (cantidadPrestada > 0) {
+      return AssetStatus.prestado.name;
+    }
+
+    if (cantidadMantenimiento > 0) {
+      return AssetStatus.mantenimiento.name;
+    }
+
+    if (cantidadBaja >= cantidadTotal) {
+      return AssetStatus.dadoDeBaja.name;
+    }
+
+    return AssetStatus.disponible.name;
   }
 
   /// Intenta sincronizar todas las devoluciones pendientes.
