@@ -6,6 +6,7 @@ import 'pages/login_page.dart';
 import 'pages/activos_page.dart';
 import 'pages/devoluciones_page.dart';
 import 'pages/gestion_activos_page.dart';
+import 'pages/historial_prestamos_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +34,8 @@ class AssetLoanApp extends StatelessWidget {
         '/home': (context) => const ActivosPage(),
         '/devoluciones': (context) => const DevolucionesPage(),
         '/gestion-activos': (context) => const GestionActivosPage(),
+        '/historial-prestamos': (context) =>
+            const HistorialPrestamosPage(),
       },
     );
   }

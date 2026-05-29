@@ -646,7 +646,6 @@ class _GestionActivosPageState extends State<GestionActivosPage> {
       },
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<PerfilUsuario?>(
@@ -687,6 +686,18 @@ class _GestionActivosPageState extends State<GestionActivosPage> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Gestión de inventario'),
+            actions: [
+              IconButton(
+                tooltip: 'Historial de préstamos',
+                icon: const Icon(Icons.history_outlined),
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/historial-prestamos',
+                  );
+                },
+              ),
+            ],
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: procesando ? null : _abrirFormularioRegistro,
