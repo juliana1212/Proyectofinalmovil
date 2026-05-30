@@ -7,6 +7,7 @@ import '../models/enums.dart';
 import '../models/perfil_usuario.dart';
 import '../services/servicio_devoluciones.dart';
 import '../widgets/widgets_devoluciones.dart';
+import '../services/servicio_preferencias.dart';
 
 class DevolucionesColors {
   static const Color fondoGeneral = Color(0xFFF3F5FC);
@@ -38,6 +39,8 @@ class DevolucionesPage extends StatefulWidget {
 
 class _DevolucionesPageState extends State<DevolucionesPage> {
   final ServicioDevoluciones servicioDevoluciones = ServicioDevoluciones();
+  final ServicioPreferencias servicioPreferencias = ServicioPreferencias();
+  DateTime? ultimaSincronizacion;
 
   late Future<PerfilUsuario?> perfilFuture;
   bool sincronizando = false;
@@ -46,12 +49,40 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
   void initState() {
     super.initState();
     perfilFuture = _obtenerPerfilActual();
+    _cargarUltimaSincronizacion();
   }
 
   @override
   void dispose() {
     servicioDevoluciones.cerrarBaseLocal();
     super.dispose();
+  }
+
+  Future<void> _cargarUltimaSincronizacion() async {
+    final fecha = await servicioPreferencias.obtenerUltimaSincronizacion();
+
+    if (!mounted) return;
+
+    setState(() {
+      ultimaSincronizacion = fecha;
+    });
+  }
+
+  String _textoUltimaSincronizacion() {
+    if (ultimaSincronizacion == null) {
+      return 'Aún no se ha realizado una sincronización.';
+    }
+
+    final fecha = ultimaSincronizacion!;
+
+    final dia = fecha.day.toString().padLeft(2, '0');
+    final mes = fecha.month.toString().padLeft(2, '0');
+    final anio = fecha.year.toString();
+
+    final hora = fecha.hour.toString().padLeft(2, '0');
+    final minutos = fecha.minute.toString().padLeft(2, '0');
+
+    return 'Última sincronización: $dia/$mes/$anio · $hora:$minutos';
   }
 
   String _normalizarTexto(String texto) {
@@ -175,6 +206,10 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
 
     try {
       final resultado = await servicioDevoluciones.sincronizarPendientes();
+
+      if (!mounted) return;
+
+      await _cargarUltimaSincronizacion();
 
       if (!mounted) return;
 
@@ -378,8 +413,9 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
                                 side: const BorderSide(
                                   color: DevolucionesColors.acentoPrincipal,
                                 ),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(18),
                                 ),
@@ -397,8 +433,9 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
                                 backgroundColor:
                                     DevolucionesColors.acentoPrincipal,
                                 foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(18),
                                 ),
@@ -581,9 +618,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
     );
   }
 
-  Widget _listaPendienteSinConexion(
-    List<DevolucionesPendiente> pendientes,
-  ) {
+  Widget _listaPendienteSinConexion(List<DevolucionesPendiente> pendientes) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 90),
       itemCount: pendientes.length,
@@ -639,10 +674,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
     required bool pendienteLocal,
     required bool vencido,
   }) {
-    final imagen = _imagenActivo(
-      categoria: categoria,
-      nombreActivo: nombre,
-    );
+    final imagen = _imagenActivo(categoria: categoria, nombreActivo: nombre);
 
     final fondo = _colorDecorativo(index);
 
@@ -658,13 +690,13 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
           pendienteLocal
               ? Icons.cloud_off_outlined
               : vencido
-                  ? Icons.warning_amber_outlined
-                  : _iconoCategoria(categoria),
+              ? Icons.warning_amber_outlined
+              : _iconoCategoria(categoria),
           color: pendienteLocal
               ? DevolucionesColors.naranja
               : vencido
-                  ? DevolucionesColors.rojo
-                  : DevolucionesColors.acentoPrincipal,
+              ? DevolucionesColors.rojo
+              : DevolucionesColors.acentoPrincipal,
           size: 62,
         ),
       );
@@ -725,10 +757,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withAlpha(26),
         borderRadius: BorderRadius.circular(16),
@@ -736,11 +765,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icono,
-            size: 15,
-            color: color,
-          ),
+          Icon(icono, size: 15, color: color),
           const SizedBox(width: 5),
           Text(
             texto,
@@ -773,14 +798,13 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
       builder: (context, activoSnapshot) {
         final datosActivo = activoSnapshot.data?.data();
 
-        final nombre = datosActivo?['nombre']?.toString() ??
-            'Activo $activoId';
+        final nombre = datosActivo?['nombre']?.toString() ?? 'Activo $activoId';
 
-        final categoria = datosActivo?['categoria']?.toString() ??
-            'Sin categoría';
+        final categoria =
+            datosActivo?['categoria']?.toString() ?? 'Sin categoría';
 
-        final descripcion = datosActivo?['descripcion']?.toString() ??
-            'Préstamo institucional';
+        final descripcion =
+            datosActivo?['descripcion']?.toString() ?? 'Préstamo institucional';
 
         return Container(
           margin: const EdgeInsets.only(bottom: 18),
@@ -857,8 +881,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
                     else
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor:
-                              DevolucionesColors.acentoPrincipal,
+                          backgroundColor: DevolucionesColors.acentoPrincipal,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -892,8 +915,9 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
     required PerfilUsuario perfil,
     required List<DevolucionesPendiente> pendientes,
   }) {
-    final prestamosPendientes =
-        pendientes.map((registro) => registro.prestamoId).toSet();
+    final prestamosPendientes = pendientes
+        .map((registro) => registro.prestamoId)
+        .toSet();
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: servicioDevoluciones.obtenerPrestamosPorDevolver(),
@@ -958,9 +982,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
                   Text(
                     'Cuando haya préstamos activos o vencidos aparecerán aquí.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: DevolucionesColors.textoSecundario,
-                    ),
+                    style: TextStyle(color: DevolucionesColors.textoSecundario),
                   ),
                 ],
               ),
@@ -988,26 +1010,39 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
             if (pendientes.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 18),
-                child: BannerPendientesSincronizacion(
-                  cantidadPendientes: pendientes.length,
-                  sincronizando: sincronizando,
-                  onSincronizar: _sincronizarPendientes,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    BannerPendientesSincronizacion(
+                      cantidadPendientes: pendientes.length,
+                      sincronizando: sincronizando,
+                      onSincronizar: _sincronizarPendientes,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _textoUltimaSincronizacion(),
+                      style: const TextStyle(
+                        color: DevolucionesColors.textoSecundario,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ...documentos.asMap().entries.map(
-                  (entry) {
-                    final prestamoDocumento = entry.value;
-                    final pendienteLocal =
-                        prestamosPendientes.contains(prestamoDocumento.id);
+            ...documentos.asMap().entries.map((entry) {
+              final prestamoDocumento = entry.value;
+              final pendienteLocal = prestamosPendientes.contains(
+                prestamoDocumento.id,
+              );
 
-                    return _tarjetaPrestamo(
-                      perfil: perfil,
-                      prestamoDocumento: prestamoDocumento,
-                      pendienteLocal: pendienteLocal,
-                      index: entry.key,
-                    );
-                  },
-                ),
+              return _tarjetaPrestamo(
+                perfil: perfil,
+                prestamoDocumento: prestamoDocumento,
+                pendienteLocal: pendienteLocal,
+                index: entry.key,
+              );
+            }),
           ],
         );
       },
@@ -1034,9 +1069,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
           child: Text(
             mensaje,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: DevolucionesColors.textoSecundario,
-            ),
+            style: const TextStyle(color: DevolucionesColors.textoSecundario),
           ),
         ),
       ),
@@ -1053,17 +1086,13 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
         }
 
         if (perfilSnapshot.hasError) {
-          return _pantallaMensaje(
-            'Error al consultar el perfil del usuario.',
-          );
+          return _pantallaMensaje('Error al consultar el perfil del usuario.');
         }
 
         final perfil = perfilSnapshot.data;
 
         if (perfil == null) {
-          return _pantallaMensaje(
-            'No se encontró el perfil del usuario.',
-          );
+          return _pantallaMensaje('No se encontró el perfil del usuario.');
         }
 
         final puedeConfirmar =
@@ -1084,10 +1113,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
 
             return Scaffold(
               backgroundColor: DevolucionesColors.fondoGeneral,
-              body: _listaPrestamos(
-                perfil: perfil,
-                pendientes: pendientes,
-              ),
+              body: _listaPrestamos(perfil: perfil, pendientes: pendientes),
               floatingActionButton: FloatingActionButton.small(
                 heroTag: 'sync_devoluciones',
                 backgroundColor: DevolucionesColors.acentoSuave,
