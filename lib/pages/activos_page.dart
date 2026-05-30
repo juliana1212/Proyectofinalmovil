@@ -286,21 +286,14 @@ class _ActivosPageState extends State<ActivosPage> {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
           color: fondo,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           children: [
-            Icon(
-              icono,
-              color: color,
-              size: 22,
-            ),
+            Icon(icono, color: color, size: 22),
             const SizedBox(height: 5),
             Text(
               valor,
@@ -327,11 +320,18 @@ class _ActivosPageState extends State<ActivosPage> {
   }
 
   Widget _seccionCategorias(List<Activo> activos) {
-    final categorias = activos
-        .map((activo) => _categoriaNormalizada(activo.categoria))
-        .toSet()
-        .toList()
-      ..sort();
+    final activosDisponibles = activos.where((activo) {
+      final estado = _estadoVisible(activo);
+
+      return estado == 'disponible' && activo.cantidadDisponible > 0;
+    }).toList();
+
+    final categorias =
+        activosDisponibles
+            .map((activo) => _categoriaNormalizada(activo.categoria))
+            .toSet()
+            .toList()
+          ..sort();
 
     final opciones = ['todos', ...categorias];
 
@@ -352,16 +352,21 @@ class _ActivosPageState extends State<ActivosPage> {
               final categoria = opciones[index];
               final seleccionado = categoriaSeleccionada == categoria;
 
-              final cantidad = categoria == 'todos'
-                  ? activos.length
-                  : activos
-                      .where(
-                        (activo) =>
-                            _categoriaNormalizada(activo.categoria) ==
-                            categoria,
-                      )
-                      .length;
+              final activosDisponibles = activos.where((activo) {
+                final estado = _estadoVisible(activo);
 
+                return estado == 'disponible' && activo.cantidadDisponible > 0;
+              }).toList();
+
+              final cantidad = categoria == 'todos'
+                  ? activosDisponibles.length
+                  : activosDisponibles
+                        .where(
+                          (activo) =>
+                              _categoriaNormalizada(activo.categoria) ==
+                              categoria,
+                        )
+                        .length;
               return CategoriaActivoAnimada(
                 texto: '${_textoCategoria(categoria)} ($cantidad)',
                 icono: _iconoCategoria(categoria),
@@ -396,11 +401,7 @@ class _ActivosPageState extends State<ActivosPage> {
           color: fondo,
           borderRadius: BorderRadius.circular(32),
         ),
-        child: Icon(
-          _iconoCategoria(categoria),
-          color: colorEstado,
-          size: 64,
-        ),
+        child: Icon(_iconoCategoria(categoria), color: colorEstado, size: 64),
       );
     }
 
@@ -440,10 +441,7 @@ class _ActivosPageState extends State<ActivosPage> {
     final color = _colorEstado(estado);
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 11,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
         color: color.withAlpha(28),
         borderRadius: BorderRadius.circular(16),
@@ -451,11 +449,7 @@ class _ActivosPageState extends State<ActivosPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            _iconoEstado(estado),
-            color: color,
-            size: 15,
-          ),
+          Icon(_iconoEstado(estado), color: color, size: 15),
           const SizedBox(width: 5),
           Text(
             _textoEstado(estado),
@@ -477,10 +471,7 @@ class _ActivosPageState extends State<ActivosPage> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withAlpha(18),
         borderRadius: BorderRadius.circular(14),
@@ -488,11 +479,7 @@ class _ActivosPageState extends State<ActivosPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icono,
-            color: color,
-            size: 16,
-          ),
+          Icon(icono, color: color, size: 16),
           const SizedBox(width: 5),
           Text(
             '$titulo: $cantidad',
@@ -621,12 +608,12 @@ class _ActivosPageState extends State<ActivosPage> {
     final filtrados = categoriaSeleccionada == 'todos'
         ? activos
         : activos
-            .where(
-              (activo) =>
-                  _categoriaNormalizada(activo.categoria) ==
-                  categoriaSeleccionada,
-            )
-            .toList();
+              .where(
+                (activo) =>
+                    _categoriaNormalizada(activo.categoria) ==
+                    categoriaSeleccionada,
+              )
+              .toList();
 
     if (filtrados.isEmpty) {
       return Container(
@@ -641,9 +628,7 @@ class _ActivosPageState extends State<ActivosPage> {
               ? 'No hay activos registrados.'
               : 'No hay activos en la categoría ${_textoCategoria(categoriaSeleccionada)}.',
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: ActivosColors.textoSecundario,
-          ),
+          style: const TextStyle(color: ActivosColors.textoSecundario),
         ),
       );
     }
@@ -658,11 +643,8 @@ class _ActivosPageState extends State<ActivosPage> {
         ),
         const SizedBox(height: 14),
         ...filtrados.asMap().entries.map(
-              (entry) => _tarjetaActivo(
-                entry.value,
-                entry.key,
-              ),
-            ),
+          (entry) => _tarjetaActivo(entry.value, entry.key),
+        ),
       ],
     );
   }
@@ -689,9 +671,7 @@ class _ActivosPageState extends State<ActivosPage> {
                 child: Text(
                   'Error al cargar activos: ${snapshot.error}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: ActivosColors.textoSecundario,
-                  ),
+                  style: const TextStyle(color: ActivosColors.textoSecundario),
                 ),
               ),
             );
@@ -703,9 +683,7 @@ class _ActivosPageState extends State<ActivosPage> {
             return const Center(
               child: Text(
                 'No hay activos registrados.',
-                style: TextStyle(
-                  color: ActivosColors.textoSecundario,
-                ),
+                style: TextStyle(color: ActivosColors.textoSecundario),
               ),
             );
           }
@@ -743,8 +721,7 @@ class CategoriaActivoAnimada extends StatefulWidget {
   });
 
   @override
-  State<CategoriaActivoAnimada> createState() =>
-      _CategoriaActivoAnimadaState();
+  State<CategoriaActivoAnimada> createState() => _CategoriaActivoAnimadaState();
 }
 
 class _CategoriaActivoAnimadaState extends State<CategoriaActivoAnimada> {
@@ -784,14 +761,15 @@ class _CategoriaActivoAnimadaState extends State<CategoriaActivoAnimada> {
                     color: widget.seleccionado
                         ? ActivosColors.acentoPrincipal
                         : encima
-                            ? ActivosColors.acentoSuave
-                            : ActivosColors.fondoTarjeta,
+                        ? ActivosColors.acentoSuave
+                        : ActivosColors.fondoTarjeta,
                     shape: BoxShape.circle,
                     boxShadow: activo
                         ? [
                             BoxShadow(
-                              color:
-                                  ActivosColors.acentoPrincipal.withAlpha(70),
+                              color: ActivosColors.acentoPrincipal.withAlpha(
+                                70,
+                              ),
                               blurRadius: 14,
                               offset: const Offset(0, 7),
                             ),
