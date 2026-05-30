@@ -38,7 +38,7 @@ class ServicioAuth {
   // Revisar si el usuario tiene acceso según estado y rol
   bool puedeAcceder(User? user, {AccountStatus estado = AccountStatus.active, UserRole rol = UserRole.solicitante}) {
     if (user == null) return false;
-    // Aquí puedes implementar lógicas adicionales según rol y estado
+
     return true;
   }
 }
