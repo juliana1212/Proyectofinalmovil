@@ -70,7 +70,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
 
   String _textoUltimaSincronizacion() {
     if (ultimaSincronizacion == null) {
-      return 'Aún no se ha realizado una sincronización.';
+      return 'Sin sincronizaciones registradas todavía.';
     }
 
     final fecha = ultimaSincronizacion!;
@@ -997,6 +997,35 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
               cantidadRemota: documentos.length,
               cantidadLocal: pendientes.length,
             ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: DevolucionesColors.fondoTarjeta,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.sync,
+                    size: 18,
+                    color: DevolucionesColors.textoSecundario,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _textoUltimaSincronizacion(),
+                      style: const TextStyle(
+                        color: DevolucionesColors.textoSecundario,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
             const Text(
               'Confirmar devoluciones',
@@ -1010,24 +1039,10 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
             if (pendientes.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    BannerPendientesSincronizacion(
-                      cantidadPendientes: pendientes.length,
-                      sincronizando: sincronizando,
-                      onSincronizar: _sincronizarPendientes,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _textoUltimaSincronizacion(),
-                      style: const TextStyle(
-                        color: DevolucionesColors.textoSecundario,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                child: BannerPendientesSincronizacion(
+                  cantidadPendientes: pendientes.length,
+                  sincronizando: sincronizando,
+                  onSincronizar: _sincronizarPendientes,
                 ),
               ),
             ...documentos.asMap().entries.map((entry) {
