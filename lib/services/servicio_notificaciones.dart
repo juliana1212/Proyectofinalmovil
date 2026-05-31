@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class ServicioNotificaciones {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  static const String enlaceEncuesta = 'https://forms.gle/Pendiente';
+  static const String enlaceEncuesta = 'https://forms.gle/kgHNpJaBPKxZwa9A6';
 
   Future<void> crearNotificacion({
     required String usuarioId,
