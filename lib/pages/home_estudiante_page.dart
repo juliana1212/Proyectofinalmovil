@@ -40,10 +40,7 @@ class _HomeEstudiantePageState extends State<HomeEstudiantePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      body: IndexedStack(
-        index: paginaSeleccionada,
-        children: paginas,
-      ),
+      body: IndexedStack(index: paginaSeleccionada, children: paginas),
       bottomNavigationBar: NavigationBar(
         selectedIndex: paginaSeleccionada,
         backgroundColor: AppColors.fondoTarjeta,
@@ -56,10 +53,7 @@ class _HomeEstudiantePageState extends State<HomeEstudiantePage> {
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(
-              Icons.home,
-              color: AppColors.acentoPrincipal,
-            ),
+            selectedIcon: Icon(Icons.home, color: AppColors.acentoPrincipal),
             label: 'Inicio',
           ),
           NavigationDestination(
@@ -84,8 +78,7 @@ class InicioEstudianteDashboard extends StatefulWidget {
       _InicioEstudianteDashboardState();
 }
 
-class _InicioEstudianteDashboardState
-    extends State<InicioEstudianteDashboard> {
+class _InicioEstudianteDashboardState extends State<InicioEstudianteDashboard> {
   final ServicioActivos servicioActivos = ServicioActivos();
   final ServicioPrestamos servicioPrestamos = ServicioPrestamos();
 
@@ -107,14 +100,11 @@ class _InicioEstudianteDashboardState
     activosStream = servicioActivos.obtenerActivos();
     prestamosStream = _crearStreamPrestamosUsuario();
 
-    temporizador = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (mounted) {
-          setState(() {});
-        }
-      },
-    );
+    temporizador = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -343,10 +333,7 @@ class _InicioEstudianteDashboardState
       final mensaje = error.toString().replaceFirst('Exception: ', '');
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(mensaje),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(mensaje), backgroundColor: Colors.red),
       );
     }
   }
@@ -544,20 +531,18 @@ class _InicioEstudianteDashboardState
         final ultimo = prestamos.first.data();
         final activoId = (ultimo['activoId'] ?? '').toString();
 
-        final fechaVencimiento = _convertirFecha(
-          ultimo['fechaVencimiento'],
-        );
+        final fechaVencimiento = _convertirFecha(ultimo['fechaVencimiento']);
 
         return FutureBuilder<Map<String, dynamic>?>(
           future: _obtenerActivoPorId(activoId),
           builder: (context, activoSnapshot) {
             final activo = activoSnapshot.data;
 
-            final nombreActivo =
-                (activo?['nombre'] ?? 'Activo solicitado').toString();
+            final nombreActivo = (activo?['nombre'] ?? 'Activo solicitado')
+                .toString();
 
-            final categoria =
-                (activo?['categoria'] ?? 'Sin categoría').toString();
+            final categoria = (activo?['categoria'] ?? 'Sin categoría')
+                .toString();
 
             return Container(
               width: double.infinity,
@@ -649,11 +634,19 @@ class _InicioEstudianteDashboardState
   }
 
   Widget _seccionCategorias(List<Activo> activos) {
-    final categorias = activos
-        .map((activo) => _categoriaNormalizada(activo.categoria))
-        .toSet()
-        .toList()
-      ..sort();
+    final activosDisponibles = activos
+        .where(
+          (activo) =>
+              activo.estado == 'disponible' && activo.cantidadDisponible > 0,
+        )
+        .toList();
+
+    final categorias =
+        activosDisponibles
+            .map((activo) => _categoriaNormalizada(activo.categoria))
+            .toSet()
+            .toList()
+          ..sort();
 
     final opciones = ['todos', ...categorias];
 
@@ -675,14 +668,14 @@ class _InicioEstudianteDashboardState
               final seleccionado = categoriaSeleccionada == categoria;
 
               final cantidad = categoria == 'todos'
-                  ? activos.length
-                  : activos
-                      .where(
-                        (activo) =>
-                            _categoriaNormalizada(activo.categoria) ==
-                            categoria,
-                      )
-                      .length;
+                  ? activosDisponibles.length
+                  : activosDisponibles
+                        .where(
+                          (activo) =>
+                              _categoriaNormalizada(activo.categoria) ==
+                              categoria,
+                        )
+                        .length;
 
               return CategoriaIconoAnimado(
                 categoria: categoria,
@@ -774,10 +767,7 @@ class _InicioEstudianteDashboardState
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.acentoSuave,
                 borderRadius: BorderRadius.circular(16),
@@ -798,14 +788,12 @@ class _InicioEstudianteDashboardState
     final disponibles = activos
         .where(
           (activo) =>
-              activo.estado == 'disponible' &&
-              activo.cantidadDisponible > 0,
+              activo.estado == 'disponible' && activo.cantidadDisponible > 0,
         )
         .where(
           (activo) =>
               categoriaSeleccionada == 'todos' ||
-              _categoriaNormalizada(activo.categoria) ==
-                  categoriaSeleccionada,
+              _categoriaNormalizada(activo.categoria) == categoriaSeleccionada,
         )
         .toList();
 
@@ -821,9 +809,7 @@ class _InicioEstudianteDashboardState
           categoriaSeleccionada == 'todos'
               ? 'No hay activos disponibles para prestar en este momento.'
               : 'No hay activos disponibles en la categoría ${_textoCategoria(categoriaSeleccionada)}.',
-          style: const TextStyle(
-            color: AppColors.textoSecundario,
-          ),
+          style: const TextStyle(color: AppColors.textoSecundario),
         ),
       );
     }
@@ -853,9 +839,7 @@ class _InicioEstudianteDashboardState
             final activos = snapshot.data ?? [];
 
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
+              return const Center(child: CircularProgressIndicator());
             }
 
             return SingleChildScrollView(
@@ -897,8 +881,7 @@ class CategoriaIconoAnimado extends StatefulWidget {
   });
 
   @override
-  State<CategoriaIconoAnimado> createState() =>
-      _CategoriaIconoAnimadoState();
+  State<CategoriaIconoAnimado> createState() => _CategoriaIconoAnimadoState();
 }
 
 class _CategoriaIconoAnimadoState extends State<CategoriaIconoAnimado> {
@@ -938,8 +921,8 @@ class _CategoriaIconoAnimadoState extends State<CategoriaIconoAnimado> {
                     color: widget.seleccionado
                         ? AppColors.acentoPrincipal
                         : encima
-                            ? AppColors.acentoSuave
-                            : AppColors.fondoChip,
+                        ? AppColors.acentoSuave
+                        : AppColors.fondoChip,
                     shape: BoxShape.circle,
                     boxShadow: activo
                         ? [

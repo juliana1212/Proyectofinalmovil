@@ -352,11 +352,7 @@ class _ActivosPageState extends State<ActivosPage> {
               final categoria = opciones[index];
               final seleccionado = categoriaSeleccionada == categoria;
 
-              final activosDisponibles = activos.where((activo) {
-                final estado = _estadoVisible(activo);
 
-                return estado == 'disponible' && activo.cantidadDisponible > 0;
-              }).toList();
 
               final cantidad = categoria == 'todos'
                   ? activosDisponibles.length

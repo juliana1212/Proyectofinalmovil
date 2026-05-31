@@ -950,8 +950,15 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
         }
 
         final documentos = snapshot.data?.docs ?? [];
+        final documentosVisibles = documentos.where((documento) {
+          final datos = documento.data();
+          final estado = (datos['estado'] ?? '').toString();
 
-        if (documentos.isEmpty && pendientes.isEmpty) {
+          return estado == 'activo' || estado == 'vencido';
+        }).toList();       
+        
+
+        if (documentosVisibles.isEmpty && pendientes.isEmpty) {
           return Center(
             child: Container(
               margin: const EdgeInsets.all(24),
@@ -993,8 +1000,9 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(22, 4, 22, 90),
           children: [
+
             _resumenPendientes(
-              cantidadRemota: documentos.length,
+              cantidadRemota: documentosVisibles.length,
               cantidadLocal: pendientes.length,
             ),
             const SizedBox(height: 10),
@@ -1045,7 +1053,7 @@ class _DevolucionesPageState extends State<DevolucionesPage> {
                   onSincronizar: _sincronizarPendientes,
                 ),
               ),
-            ...documentos.asMap().entries.map((entry) {
+            ...documentosVisibles.asMap().entries.map((entry) {
               final prestamoDocumento = entry.value;
               final pendienteLocal = prestamosPendientes.contains(
                 prestamoDocumento.id,
