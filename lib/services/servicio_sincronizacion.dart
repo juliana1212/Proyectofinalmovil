@@ -93,12 +93,14 @@ class ServicioSincronizacion {
         throw Exception('El activo seleccionado no existe.');
       }
 
-      final estadoPrestamo = (prestamoDocumento.data()?['estado'] ?? '')
-          .toString();
+      final estadoPrestamo =
+          (prestamoDocumento.data()?['estado'] ?? '').toString();
 
       if (estadoPrestamo != LoanStatus.activo.name &&
           estadoPrestamo != LoanStatus.vencido.name) {
-        throw Exception('El préstamo ya fue devuelto o no puede procesarse.');
+        throw Exception(
+          'El préstamo ya fue devuelto o no puede procesarse.',
+        );
       }
 
       final datosActivo = activoDocumento.data()!;
