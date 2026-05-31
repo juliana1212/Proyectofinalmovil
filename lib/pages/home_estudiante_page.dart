@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../models/activo.dart';
 import '../models/perfil_usuario.dart';
 import '../services/servicio_activos.dart';
+import '../services/servicio_notificaciones.dart';
 import '../services/servicio_prestamos.dart';
 import 'mis_prestamos_page.dart';
 
@@ -40,10 +41,7 @@ class _HomeEstudiantePageState extends State<HomeEstudiantePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.fondoGeneral,
-      body: IndexedStack(
-        index: paginaSeleccionada,
-        children: paginas,
-      ),
+      body: IndexedStack(index: paginaSeleccionada, children: paginas),
       bottomNavigationBar: NavigationBar(
         selectedIndex: paginaSeleccionada,
         backgroundColor: AppColors.fondoTarjeta,
@@ -56,10 +54,7 @@ class _HomeEstudiantePageState extends State<HomeEstudiantePage> {
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(
-              Icons.home,
-              color: AppColors.acentoPrincipal,
-            ),
+            selectedIcon: Icon(Icons.home, color: AppColors.acentoPrincipal),
             label: 'Inicio',
           ),
           NavigationDestination(
@@ -84,10 +79,11 @@ class InicioEstudianteDashboard extends StatefulWidget {
       _InicioEstudianteDashboardState();
 }
 
-class _InicioEstudianteDashboardState
-    extends State<InicioEstudianteDashboard> {
+class _InicioEstudianteDashboardState extends State<InicioEstudianteDashboard> {
   final ServicioActivos servicioActivos = ServicioActivos();
   final ServicioPrestamos servicioPrestamos = ServicioPrestamos();
+  final ServicioNotificaciones servicioNotificaciones =
+      ServicioNotificaciones();
 
   late Future<PerfilUsuario?> perfilFuture;
   late Stream<List<Activo>> activosStream;
@@ -98,6 +94,7 @@ class _InicioEstudianteDashboardState
   Timer? temporizador;
 
   String categoriaSeleccionada = 'todos';
+  bool prestamoEnProceso = false;
 
   @override
   void initState() {
@@ -107,14 +104,11 @@ class _InicioEstudianteDashboardState
     activosStream = servicioActivos.obtenerActivos();
     prestamosStream = _crearStreamPrestamosUsuario();
 
-    temporizador = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (mounted) {
-          setState(() {});
-        }
-      },
-    );
+    temporizador = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -306,6 +300,8 @@ class _InicioEstudianteDashboardState
   }
 
   Future<void> _solicitarPrestamo(Activo activo) async {
+    if (prestamoEnProceso) return;
+
     final usuarioId = FirebaseAuth.instance.currentUser?.uid;
 
     if (usuarioId == null) {
@@ -317,6 +313,10 @@ class _InicioEstudianteDashboardState
       );
       return;
     }
+
+    setState(() {
+      prestamoEnProceso = true;
+    });
 
     try {
       final fechaVencimiento = await servicioPrestamos.solicitarPrestamo(
@@ -343,12 +343,303 @@ class _InicioEstudianteDashboardState
       final mensaje = error.toString().replaceFirst('Exception: ', '');
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(mensaje),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(mensaje), backgroundColor: Colors.red),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          prestamoEnProceso = false;
+        });
+      }
     }
+  }
+
+  Widget _botonNotificaciones() {
+    final usuarioId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    if (usuarioId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: servicioNotificaciones.obtenerNotificacionesUsuario(usuarioId),
+      builder: (context, snapshot) {
+        final documentos = snapshot.data?.docs ?? [];
+
+        final noLeidas = documentos.where((doc) {
+          final datos = doc.data();
+          return datos['leida'] != true;
+        }).length;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              tooltip: 'Notificaciones',
+              style: IconButton.styleFrom(
+                backgroundColor: AppColors.acentoSuave,
+                foregroundColor: AppColors.acentoPrincipal,
+                fixedSize: const Size(52, 52),
+              ),
+              onPressed: _abrirNotificaciones,
+              icon: const Icon(Icons.notifications_none_outlined),
+            ),
+            if (noLeidas > 0)
+              Positioned(
+                right: 3,
+                top: 3,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: const BoxDecoration(
+                    color: AppColors.acentoPrincipal,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    noLeidas > 9 ? '9+' : '$noLeidas',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _abrirNotificaciones() async {
+    final usuarioId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    if (usuarioId.isEmpty) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65,
+          minChildSize: 0.35,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: AppColors.fondoGeneral,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 10),
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(22, 8, 22, 12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.notifications_none_outlined,
+                          color: AppColors.acentoPrincipal,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Notificaciones',
+                          style: TextStyle(
+                            color: AppColors.textoPrincipal,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: servicioNotificaciones
+                          .obtenerNotificacionesUsuario(usuarioId),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.acentoPrincipal,
+                            ),
+                          );
+                        }
+
+                        if (snapshot.hasError) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'No se pudieron cargar las notificaciones.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.textoSecundario,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        final notificaciones = snapshot.data?.docs ?? [];
+
+                        if (notificaciones.isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'Aún no tienes notificaciones.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.textoSecundario,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          controller: scrollController,
+                          padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
+                          itemCount: notificaciones.length,
+                          separatorBuilder: (context, index) {
+                            return const SizedBox(height: 12);
+                          },
+                          itemBuilder: (context, index) {
+                            final documento = notificaciones[index];
+                            final datos = documento.data();
+
+                            final titulo = (datos['titulo'] ?? 'Notificación')
+                                .toString();
+                            final mensaje = (datos['mensaje'] ?? '').toString();
+                            final tipo = (datos['tipo'] ?? '').toString();
+                            final leida = datos['leida'] == true;
+
+                            IconData icono;
+                            Color color;
+
+                            if (tipo == 'prestamo') {
+                              icono = Icons.assignment_turned_in_outlined;
+                              color = Colors.green;
+                            } else if (tipo == 'devolucion' ||
+                                tipo == 'devolucion_novedad') {
+                              icono = Icons.assignment_return_outlined;
+                              color = Colors.orange;
+                            } else {
+                              icono = Icons.notifications_none_outlined;
+                              color = AppColors.acentoPrincipal;
+                            }
+
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(22),
+                              onTap: () {
+                                servicioNotificaciones.marcarComoLeida(
+                                  documento.id,
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: leida
+                                      ? AppColors.fondoTarjeta
+                                      : AppColors.acentoSuave,
+                                  borderRadius: BorderRadius.circular(22),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha(8),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(15),
+                                      ),
+                                      child: Icon(
+                                        icono,
+                                        color: color,
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  titulo,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: AppColors
+                                                        .textoPrincipal,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (!leida)
+                                                Container(
+                                                  width: 8,
+                                                  height: 8,
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                        color: AppColors
+                                                            .acentoPrincipal,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            mensaje,
+                                            style: const TextStyle(
+                                              color: AppColors.textoSecundario,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _encabezado() {
@@ -387,6 +678,8 @@ class _InicioEstudianteDashboardState
                 ],
               ),
             ),
+            _botonNotificaciones(),
+            const SizedBox(width: 8),
             IconButton(
               tooltip: 'Cerrar sesión',
               style: IconButton.styleFrom(
@@ -544,20 +837,18 @@ class _InicioEstudianteDashboardState
         final ultimo = prestamos.first.data();
         final activoId = (ultimo['activoId'] ?? '').toString();
 
-        final fechaVencimiento = _convertirFecha(
-          ultimo['fechaVencimiento'],
-        );
+        final fechaVencimiento = _convertirFecha(ultimo['fechaVencimiento']);
 
         return FutureBuilder<Map<String, dynamic>?>(
           future: _obtenerActivoPorId(activoId),
           builder: (context, activoSnapshot) {
             final activo = activoSnapshot.data;
 
-            final nombreActivo =
-                (activo?['nombre'] ?? 'Activo solicitado').toString();
+            final nombreActivo = (activo?['nombre'] ?? 'Activo solicitado')
+                .toString();
 
-            final categoria =
-                (activo?['categoria'] ?? 'Sin categoría').toString();
+            final categoria = (activo?['categoria'] ?? 'Sin categoría')
+                .toString();
 
             return Container(
               width: double.infinity,
@@ -649,11 +940,19 @@ class _InicioEstudianteDashboardState
   }
 
   Widget _seccionCategorias(List<Activo> activos) {
-    final categorias = activos
-        .map((activo) => _categoriaNormalizada(activo.categoria))
-        .toSet()
-        .toList()
-      ..sort();
+    final activosDisponibles = activos
+        .where(
+          (activo) =>
+              activo.estado == 'disponible' && activo.cantidadDisponible > 0,
+        )
+        .toList();
+
+    final categorias =
+        activosDisponibles
+            .map((activo) => _categoriaNormalizada(activo.categoria))
+            .toSet()
+            .toList()
+          ..sort();
 
     final opciones = ['todos', ...categorias];
 
@@ -675,14 +974,14 @@ class _InicioEstudianteDashboardState
               final seleccionado = categoriaSeleccionada == categoria;
 
               final cantidad = categoria == 'todos'
-                  ? activos.length
-                  : activos
-                      .where(
-                        (activo) =>
-                            _categoriaNormalizada(activo.categoria) ==
-                            categoria,
-                      )
-                      .length;
+                  ? activosDisponibles.length
+                  : activosDisponibles
+                        .where(
+                          (activo) =>
+                              _categoriaNormalizada(activo.categoria) ==
+                              categoria,
+                        )
+                        .length;
 
               return CategoriaIconoAnimado(
                 categoria: categoria,
@@ -705,9 +1004,11 @@ class _InicioEstudianteDashboardState
   Widget _tarjetaActivoDisponible(Activo activo) {
     return InkWell(
       borderRadius: BorderRadius.circular(24),
-      onTap: () {
-        _solicitarPrestamo(activo);
-      },
+      onTap: prestamoEnProceso
+          ? null
+          : () {
+              _solicitarPrestamo(activo);
+            },
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 14),
@@ -762,9 +1063,11 @@ class _InicioEstudianteDashboardState
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Toca para solicitar préstamo',
-                    style: TextStyle(
+                  Text(
+                    prestamoEnProceso
+                        ? 'Procesando solicitud...'
+                        : 'Toca para solicitar préstamo',
+                    style: const TextStyle(
                       color: AppColors.acentoPrincipal,
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
@@ -774,16 +1077,13 @@ class _InicioEstudianteDashboardState
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.acentoSuave,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(
-                Icons.add,
+              child: Icon(
+                prestamoEnProceso ? Icons.hourglass_empty : Icons.add,
                 size: 18,
                 color: AppColors.acentoPrincipal,
               ),
@@ -798,14 +1098,12 @@ class _InicioEstudianteDashboardState
     final disponibles = activos
         .where(
           (activo) =>
-              activo.estado == 'disponible' &&
-              activo.cantidadDisponible > 0,
+              activo.estado == 'disponible' && activo.cantidadDisponible > 0,
         )
         .where(
           (activo) =>
               categoriaSeleccionada == 'todos' ||
-              _categoriaNormalizada(activo.categoria) ==
-                  categoriaSeleccionada,
+              _categoriaNormalizada(activo.categoria) == categoriaSeleccionada,
         )
         .toList();
 
@@ -821,9 +1119,7 @@ class _InicioEstudianteDashboardState
           categoriaSeleccionada == 'todos'
               ? 'No hay activos disponibles para prestar en este momento.'
               : 'No hay activos disponibles en la categoría ${_textoCategoria(categoriaSeleccionada)}.',
-          style: const TextStyle(
-            color: AppColors.textoSecundario,
-          ),
+          style: const TextStyle(color: AppColors.textoSecundario),
         ),
       );
     }
@@ -853,9 +1149,7 @@ class _InicioEstudianteDashboardState
             final activos = snapshot.data ?? [];
 
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
+              return const Center(child: CircularProgressIndicator());
             }
 
             return SingleChildScrollView(
@@ -897,8 +1191,7 @@ class CategoriaIconoAnimado extends StatefulWidget {
   });
 
   @override
-  State<CategoriaIconoAnimado> createState() =>
-      _CategoriaIconoAnimadoState();
+  State<CategoriaIconoAnimado> createState() => _CategoriaIconoAnimadoState();
 }
 
 class _CategoriaIconoAnimadoState extends State<CategoriaIconoAnimado> {
@@ -938,8 +1231,8 @@ class _CategoriaIconoAnimadoState extends State<CategoriaIconoAnimado> {
                     color: widget.seleccionado
                         ? AppColors.acentoPrincipal
                         : encima
-                            ? AppColors.acentoSuave
-                            : AppColors.fondoChip,
+                        ? AppColors.acentoSuave
+                        : AppColors.fondoChip,
                     shape: BoxShape.circle,
                     boxShadow: activo
                         ? [

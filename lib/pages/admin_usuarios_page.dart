@@ -39,11 +39,7 @@ class AdminUsuariosPage extends StatefulWidget {
 class _AdminUsuariosPageState extends State<AdminUsuariosPage> {
   int paginaSeleccionada = 0;
 
-  final List<String> estados = [
-    'pendingApproval',
-    'active',
-    'blocked',
-  ];
+  final List<String> estados = ['pendingApproval', 'active', 'blocked'];
 
   Future<void> _cerrarSesion() async {
     await FirebaseAuth.instance.signOut();
@@ -181,10 +177,7 @@ class _AdminUsuariosPageState extends State<AdminUsuariosPage> {
           ),
           NavigationDestination(
             icon: Icon(Icons.block_outlined),
-            selectedIcon: Icon(
-              Icons.block,
-              color: AdminColors.acentoPrincipal,
-            ),
+            selectedIcon: Icon(Icons.block, color: AdminColors.acentoPrincipal),
             label: 'Bloqueados',
           ),
         ],
@@ -196,9 +189,7 @@ class _AdminUsuariosPageState extends State<AdminUsuariosPage> {
 class _ListaUsuarios extends StatelessWidget {
   final String filtroEstado;
 
-  const _ListaUsuarios({
-    required this.filtroEstado,
-  });
+  const _ListaUsuarios({required this.filtroEstado});
 
   IconData get _iconoVacio {
     if (filtroEstado == 'pendingApproval') {
@@ -247,9 +238,7 @@ class _ListaUsuarios extends StatelessWidget {
               child: Text(
                 'Error al cargar usuarios:\n${snapshot.error}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AdminColors.rojo,
-                ),
+                style: const TextStyle(color: AdminColors.rojo),
               ),
             ),
           );
@@ -317,17 +306,13 @@ class _ListaUsuarios extends StatelessWidget {
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(22, 4, 22, 100),
           itemCount: docs.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 18),
+          separatorBuilder: (context, index) => const SizedBox(height: 18),
           itemBuilder: (context, index) {
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
             final perfil = PerfilUsuario.fromMap(data, doc.id);
 
-            return _TarjetaUsuario(
-              perfil: perfil,
-              docId: doc.id,
-              index: index,
-            );
+            return _TarjetaUsuario(perfil: perfil, docId: doc.id, index: index);
           },
         );
       },
@@ -449,11 +434,7 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
               color: _fondoDecorativo(),
               borderRadius: BorderRadius.circular(28),
             ),
-            child: Icon(
-              _iconoRol,
-              color: _colorEstado,
-              size: 42,
-            ),
+            child: Icon(_iconoRol, color: _colorEstado, size: 42),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -483,10 +464,7 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
                   texto: widget.perfil.correo,
                 ),
                 const SizedBox(height: 5),
-                _lineaInfo(
-                  icono: Icons.badge_outlined,
-                  texto: _textoRol,
-                ),
+                _lineaInfo(icono: Icons.badge_outlined, texto: _textoRol),
                 const SizedBox(height: 14),
                 if (_procesando)
                   const Padding(
@@ -499,10 +477,7 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
                 else
                   _botonesAccion(),
                 const SizedBox(height: 12),
-                Divider(
-                  color: Colors.grey.shade200,
-                  height: 1,
-                ),
+                Divider(color: Colors.grey.shade200, height: 1),
                 const SizedBox(height: 10),
                 TextButton.icon(
                   style: TextButton.styleFrom(
@@ -510,15 +485,10 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
                     padding: EdgeInsets.zero,
                   ),
                   onPressed: () => _verActivosAsignados(context),
-                  icon: const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 18,
-                  ),
+                  icon: const Icon(Icons.inventory_2_outlined, size: 18),
                   label: const Text(
                     'Ver activos asignados',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
@@ -531,10 +501,7 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
 
   Widget _chipEstado() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 11,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
         color: _colorEstado.withAlpha(24),
         borderRadius: BorderRadius.circular(16),
@@ -542,11 +509,7 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            _iconoEstado,
-            color: _colorEstado,
-            size: 15,
-          ),
+          Icon(_iconoEstado, color: _colorEstado, size: 15),
           const SizedBox(width: 5),
           Text(
             _textoEstado,
@@ -561,17 +524,10 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
     );
   }
 
-  Widget _lineaInfo({
-    required IconData icono,
-    required String texto,
-  }) {
+  Widget _lineaInfo({required IconData icono, required String texto}) {
     return Row(
       children: [
-        Icon(
-          icono,
-          size: 16,
-          color: AdminColors.textoSecundario,
-        ),
+        Icon(icono, size: 16, color: AdminColors.textoSecundario),
         const SizedBox(width: 7),
         Expanded(
           child: Text(
@@ -599,10 +555,7 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
             style: FilledButton.styleFrom(
               backgroundColor: AdminColors.verde,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -616,10 +569,7 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
             style: FilledButton.styleFrom(
               backgroundColor: AdminColors.azul,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -633,13 +583,8 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               foregroundColor: AdminColors.rojo,
-              side: const BorderSide(
-                color: AdminColors.rojo,
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              side: const BorderSide(color: AdminColors.rojo),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -648,18 +593,12 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
             label: const Text('Bloquear'),
             onPressed: _confirmarBloqueo,
           ),
-        if (estado == AccountStatus.active ||
-            estado == AccountStatus.blocked)
+        if (estado == AccountStatus.active || estado == AccountStatus.blocked)
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               foregroundColor: AdminColors.naranja,
-              side: const BorderSide(
-                color: AdminColors.naranja,
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              side: const BorderSide(color: AdminColors.naranja),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -805,8 +744,8 @@ class _TarjetaUsuarioState extends State<_TarjetaUsuario> {
           backgroundColor: nuevoEstado == 'active'
               ? AdminColors.verde
               : nuevoEstado == 'blocked'
-                  ? AdminColors.rojo
-                  : AdminColors.naranja,
+              ? AdminColors.rojo
+              : AdminColors.naranja,
         ),
       );
     } catch (e) {
@@ -918,9 +857,7 @@ class _ModalActivosAsignados extends StatelessWidget {
         return Container(
           decoration: const BoxDecoration(
             color: AdminColors.fondoGeneral,
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(34),
-            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(34)),
           ),
           child: Column(
             children: [
@@ -979,8 +916,7 @@ class _ModalActivosAsignados extends StatelessWidget {
                       .where('estado', isEqualTo: 'activo')
                       .get(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState ==
-                        ConnectionState.waiting) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
                         child: CircularProgressIndicator(
                           color: AdminColors.acentoPrincipal,
@@ -992,9 +928,7 @@ class _ModalActivosAsignados extends StatelessWidget {
                       return Center(
                         child: Text(
                           'Error: ${snapshot.error}',
-                          style: const TextStyle(
-                            color: AdminColors.rojo,
-                          ),
+                          style: const TextStyle(color: AdminColors.rojo),
                         ),
                       );
                     }
@@ -1038,14 +972,13 @@ class _ModalActivosAsignados extends StatelessWidget {
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
                       itemCount: prestamos.length,
-                      separatorBuilder: (_, __) =>
+                      separatorBuilder: (context, index) =>
                           const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final data =
                             prestamos[index].data() as Map<String, dynamic>;
 
-                        final activoId =
-                            (data['activoId'] ?? '').toString();
+                        final activoId = (data['activoId'] ?? '').toString();
 
                         final fechaSolicitud = data['fechaSolicitud'];
                         final fechaVencimiento = data['fechaVencimiento'];
@@ -1053,9 +986,9 @@ class _ModalActivosAsignados extends StatelessWidget {
                         return FutureBuilder<DocumentSnapshot>(
                           future: activoId.isNotEmpty
                               ? FirebaseFirestore.instance
-                                  .collection('activos')
-                                  .doc(activoId)
-                                  .get()
+                                    .collection('activos')
+                                    .doc(activoId)
+                                    .get()
                               : Future.value(null as DocumentSnapshot?),
                           builder: (ctx, snapActivo) {
                             String nombreActivo = 'Cargando...';
@@ -1064,15 +997,16 @@ class _ModalActivosAsignados extends StatelessWidget {
                             if (snapActivo.hasData &&
                                 snapActivo.data != null &&
                                 snapActivo.data!.exists) {
-                              final activoData = snapActivo.data!.data()
-                                  as Map<String, dynamic>;
+                              final activoData =
+                                  snapActivo.data!.data()
+                                      as Map<String, dynamic>;
 
                               nombreActivo =
                                   (activoData['nombre'] ?? 'Sin nombre')
                                       .toString();
 
-                              categoriaActivo =
-                                  (activoData['categoria'] ?? '').toString();
+                              categoriaActivo = (activoData['categoria'] ?? '')
+                                  .toString();
                             }
 
                             return Container(
@@ -1095,8 +1029,7 @@ class _ModalActivosAsignados extends StatelessWidget {
                                     height: 64,
                                     decoration: BoxDecoration(
                                       color: AdminColors.azulSuave,
-                                      borderRadius:
-                                          BorderRadius.circular(20),
+                                      borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Icon(
                                       _iconoCategoria(
@@ -1116,11 +1049,9 @@ class _ModalActivosAsignados extends StatelessWidget {
                                         Text(
                                           nombreActivo,
                                           maxLines: 1,
-                                          overflow:
-                                              TextOverflow.ellipsis,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                            color:
-                                                AdminColors.textoPrincipal,
+                                            color: AdminColors.textoPrincipal,
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -1130,8 +1061,8 @@ class _ModalActivosAsignados extends StatelessWidget {
                                           Text(
                                             categoriaActivo,
                                             style: const TextStyle(
-                                              color: AdminColors
-                                                  .textoSecundario,
+                                              color:
+                                                  AdminColors.textoSecundario,
                                               fontSize: 12,
                                             ),
                                           ),
@@ -1140,8 +1071,7 @@ class _ModalActivosAsignados extends StatelessWidget {
                                         Text(
                                           'Préstamo: ${_formatearFecha(fechaSolicitud)}',
                                           style: const TextStyle(
-                                            color:
-                                                AdminColors.textoSecundario,
+                                            color: AdminColors.textoSecundario,
                                             fontSize: 12,
                                           ),
                                         ),
@@ -1162,10 +1092,8 @@ class _ModalActivosAsignados extends StatelessWidget {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color:
-                                          AdminColors.azul.withAlpha(25),
-                                      borderRadius:
-                                          BorderRadius.circular(16),
+                                      color: AdminColors.azul.withAlpha(25),
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: const Text(
                                       'Activo',

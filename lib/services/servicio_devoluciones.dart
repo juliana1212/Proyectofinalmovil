@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-
+import 'servicio_notificaciones.dart';
 import '../data/app_database.dart';
 import '../models/devolucion.dart';
 import '../models/enums.dart';
@@ -12,10 +12,7 @@ class ResultadoDevolucion {
   final bool sincronizada;
   final String mensaje;
 
-  ResultadoDevolucion({
-    required this.sincronizada,
-    required this.mensaje,
-  });
+  ResultadoDevolucion({required this.sincronizada, required this.mensaje});
 }
 
 class ServicioDevoluciones {
@@ -24,16 +21,17 @@ class ServicioDevoluciones {
   final ServicioPermisos _servicioPermisos;
   final Connectivity _connectivity;
   late final ServicioSincronizacion _servicioSincronizacion;
+  final ServicioNotificaciones _notificaciones = ServicioNotificaciones();
 
   ServicioDevoluciones({
     FirebaseFirestore? db,
     AppDatabase? database,
     ServicioPermisos? servicioPermisos,
     Connectivity? connectivity,
-  })  : _db = db ?? FirebaseFirestore.instance,
-        _database = database ?? AppDatabase(),
-        _servicioPermisos = servicioPermisos ?? ServicioPermisos(),
-        _connectivity = connectivity ?? Connectivity() {
+  }) : _db = db ?? FirebaseFirestore.instance,
+       _database = database ?? AppDatabase(),
+       _servicioPermisos = servicioPermisos ?? ServicioPermisos(),
+       _connectivity = connectivity ?? Connectivity() {
     _servicioSincronizacion = ServicioSincronizacion(
       db: _db,
       database: _database,
@@ -75,9 +73,7 @@ class ServicioDevoluciones {
     final novedad = descripcionNovedad?.trim() ?? '';
 
     if (tieneNovedad && novedad.isEmpty) {
-      throw Exception(
-        'Debes escribir la novedad encontrada en el activo.',
-      );
+      throw Exception('Debes escribir la novedad encontrada en el activo.');
     }
 
     final devolucion = Devolucion(
@@ -94,10 +90,7 @@ class ServicioDevoluciones {
     final hayConexion = await _hayConexionDeRed();
 
     if (!hayConexion) {
-      await _guardarPendiente(
-        devolucion,
-        'Sin conexión a internet.',
-      );
+      await _guardarPendiente(devolucion, 'Sin conexión a internet.');
 
       return ResultadoDevolucion(
         sincronizada: false,
@@ -107,8 +100,11 @@ class ServicioDevoluciones {
     }
 
     try {
-      await _servicioSincronizacion.enviarDevolucionAFirestore(
-        devolucion,
+      await _servicioSincronizacion.enviarDevolucionAFirestore(devolucion);
+      await _notificarDevolucion(
+        prestamoId: prestamoId,
+        activoId: activoId,
+        tieneNovedad: tieneNovedad,
       );
 
       return ResultadoDevolucion(
@@ -122,10 +118,7 @@ class ServicioDevoluciones {
         rethrow;
       }
 
-      await _guardarPendiente(
-        devolucion,
-        error.toString(),
-      );
+      await _guardarPendiente(devolucion, error.toString());
 
       return ResultadoDevolucion(
         sincronizada: false,
@@ -133,6 +126,41 @@ class ServicioDevoluciones {
             'Error temporal de conexión. La devolución quedó pendiente de sincronización.',
       );
     }
+  }
+
+  Future<void> _notificarDevolucion({
+    required String prestamoId,
+    required String activoId,
+    required bool tieneNovedad,
+  }) async {
+    final prestamoDoc = await _db.collection('prestamos').doc(prestamoId).get();
+
+    if (!prestamoDoc.exists || prestamoDoc.data() == null) {
+      return;
+    }
+
+    final datosPrestamo = prestamoDoc.data()!;
+    final usuarioId = (datosPrestamo['usuarioId'] ?? '').toString();
+
+    if (usuarioId.isEmpty) {
+      return;
+    }
+
+    final activoDoc = await _db.collection('activos').doc(activoId).get();
+
+    final nombreActivo = activoDoc.exists && activoDoc.data() != null
+        ? (activoDoc.data()!['nombre'] ?? 'activo institucional').toString()
+        : 'activo institucional';
+
+    await _notificaciones.crearNotificacion(
+      usuarioId: usuarioId,
+      titulo: tieneNovedad ? 'Devolución con novedad' : 'Devolución confirmada',
+      mensaje: tieneNovedad
+          ? 'La devolución de $nombreActivo fue registrada con novedad. El activo fue enviado a mantenimiento.'
+          : 'La devolución de $nombreActivo fue registrada correctamente. Gracias por cumplir con el préstamo. Encuesta de satisfacción: ${ServicioNotificaciones.enlaceEncuesta}',
+      tipo: tieneNovedad ? 'devolucion_novedad' : 'devolucion',
+      enlace: tieneNovedad ? null : ServicioNotificaciones.enlaceEncuesta,
+    );
   }
 
   Future<bool> _hayConexionDeRed() async {
