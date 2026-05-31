@@ -31,7 +31,6 @@ class MisPrestamosPage extends StatelessWidget {
     return FirebaseFirestore.instance
         .collection('prestamos')
         .where('usuarioId', isEqualTo: usuarioId)
-        .where('estado', whereIn: ['activo', 'vencido'])
         .snapshots();
   }
 
@@ -83,9 +82,7 @@ class MisPrestamosPage extends StatelessWidget {
     int vencidos = 0;
 
     for (final doc in docs) {
-      final fechaVencimiento = _convertirFecha(
-        doc.data()['fechaVencimiento'],
-      );
+      final fechaVencimiento = _convertirFecha(doc.data()['fechaVencimiento']);
 
       if (fechaVencimiento != null &&
           DateTime.now().isAfter(fechaVencimiento)) {
@@ -113,6 +110,135 @@ class MisPrestamosPage extends StatelessWidget {
             fondo: PrestamosColors.cremaSuave,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _nivelCumplimiento(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    int activos = 0;
+    int vencidos = 0;
+    int devueltos = 0;
+
+    for (final doc in docs) {
+      final datos = doc.data();
+      final estado = (datos['estado'] ?? '').toString();
+
+      final fechaVencimiento = _convertirFecha(datos['fechaVencimiento']);
+      final vencidoPorFecha =
+          fechaVencimiento != null && DateTime.now().isAfter(fechaVencimiento);
+
+      if (estado == 'devuelto') {
+        devueltos++;
+      } else if (estado == 'vencido' || vencidoPorFecha) {
+        vencidos++;
+      } else if (estado == 'activo') {
+        activos++;
+      }
+    }
+
+    String titulo;
+    String mensaje;
+    IconData icono;
+    Color fondo;
+    Color color;
+
+    if (docs.isEmpty) {
+      titulo = 'Nuevo usuario';
+      mensaje =
+          'Aún no tienes historial de préstamos. Cuando solicites activos, tu nivel aparecerá aquí.';
+      icono = Icons.school_outlined;
+      fondo = PrestamosColors.azulSuave;
+      color = PrestamosColors.acentoPrincipal;
+    } else if (vencidos > 0) {
+      titulo = 'Requiere atención';
+      mensaje =
+          'Tienes préstamos vencidos o pendientes por revisar. Devuélvelos para mejorar tu nivel.';
+      icono = Icons.warning_amber_outlined;
+      fondo = PrestamosColors.cremaSuave;
+      color = PrestamosColors.rojo;
+    } else if (devueltos >= 3) {
+      titulo = 'Usuario responsable';
+      mensaje =
+          'Buen historial de devoluciones. Mantienes un comportamiento confiable en el sistema.';
+      icono = Icons.verified_outlined;
+      fondo = PrestamosColors.verdeSuave;
+      color = PrestamosColors.verde;
+    } else {
+      titulo = 'En buen estado';
+      mensaje =
+          'No tienes préstamos vencidos. Sigue devolviendo los activos a tiempo.';
+      icono = Icons.check_circle_outline;
+      fondo = PrestamosColors.azulSuave;
+      color = PrestamosColors.acentoPrincipal;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 6, 22, 18),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: fondo,
+          borderRadius: BorderRadius.circular(26),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(190),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(icono, color: color, size: 30),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Nivel de cumplimiento',
+                    style: TextStyle(
+                      color: PrestamosColors.textoSecundario,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    titulo,
+                    style: const TextStyle(
+                      color: PrestamosColors.textoPrincipal,
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    mensaje,
+                    style: const TextStyle(
+                      color: PrestamosColors.textoSecundario,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _chipCumplimiento('Activos', activos),
+                      _chipCumplimiento('Devueltos', devueltos),
+                      _chipCumplimiento('Vencidos', vencidos),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -170,6 +296,24 @@ class MisPrestamosPage extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chipCumplimiento(String titulo, int valor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(180),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        '$titulo: $valor',
+        style: const TextStyle(
+          color: PrestamosColors.textoPrincipal,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -239,9 +383,7 @@ class MisPrestamosPage extends StatelessWidget {
         body: Center(
           child: Text(
             'Sesión no válida. Inicia sesión nuevamente.',
-            style: TextStyle(
-              color: PrestamosColors.textoSecundario,
-            ),
+            style: TextStyle(color: PrestamosColors.textoSecundario),
           ),
         ),
       );
@@ -278,7 +420,12 @@ class MisPrestamosPage extends StatelessWidget {
 
             final docs = snapshot.data?.docs ?? [];
 
-            docs.sort((a, b) {
+            final prestamosVisibles = docs.where((doc) {
+              final estado = (doc.data()['estado'] ?? '').toString();
+              return estado == 'activo' || estado == 'vencido';
+            }).toList();
+
+            prestamosVisibles.sort((a, b) {
               final fechaA = _convertirFecha(a.data()['fechaVencimiento']);
               final fechaB = _convertirFecha(b.data()['fechaVencimiento']);
 
@@ -292,21 +439,23 @@ class MisPrestamosPage extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _encabezado(docs.length),
-                if (docs.isNotEmpty) _estadoResumen(docs),
-                if (docs.isEmpty)
+                _encabezado(prestamosVisibles.length),
+                _nivelCumplimiento(docs),
+                if (prestamosVisibles.isNotEmpty)
+                  _estadoResumen(prestamosVisibles),
+                if (prestamosVisibles.isEmpty)
                   _vacio()
                 else
                   Expanded(
                     child: ListView.separated(
                       padding: const EdgeInsets.fromLTRB(22, 0, 22, 26),
-                      itemCount: docs.length,
+                      itemCount: prestamosVisibles.length,
                       separatorBuilder: (context, index) {
                         return const SizedBox(height: 22);
                       },
                       itemBuilder: (context, index) {
                         return TarjetaPrestamoConImagen(
-                          prestamoDocumento: docs[index],
+                          prestamoDocumento: prestamosVisibles[index],
                           posicion: index,
                         );
                       },
@@ -336,8 +485,7 @@ class TarjetaPrestamoConImagen extends StatefulWidget {
       _TarjetaPrestamoConImagenState();
 }
 
-class _TarjetaPrestamoConImagenState
-    extends State<TarjetaPrestamoConImagen> {
+class _TarjetaPrestamoConImagenState extends State<TarjetaPrestamoConImagen> {
   late Future<DocumentSnapshot<Map<String, dynamic>>> activoFuture;
   Timer? temporizador;
   bool estaEncima = false;
@@ -354,14 +502,11 @@ class _TarjetaPrestamoConImagenState
         .doc(activoId)
         .get();
 
-    temporizador = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (mounted) {
-          setState(() {});
-        }
-      },
-    );
+    temporizador = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -513,10 +658,7 @@ class _TarjetaPrestamoConImagenState
     return PrestamosColors.verde;
   }
 
-  double _progresoTiempo(
-    DateTime? fechaSolicitud,
-    DateTime? fechaVencimiento,
-  ) {
+  double _progresoTiempo(DateTime? fechaSolicitud, DateTime? fechaVencimiento) {
     if (fechaSolicitud == null || fechaVencimiento == null) {
       return 0;
     }
@@ -609,14 +751,13 @@ class _TarjetaPrestamoConImagenState
       builder: (context, snapshotActivo) {
         final activo = snapshotActivo.data?.data();
 
-        final nombreActivo =
-            (activo?['nombre'] ?? 'Activo no encontrado').toString();
+        final nombreActivo = (activo?['nombre'] ?? 'Activo no encontrado')
+            .toString();
 
-        final categoria =
-            (activo?['categoria'] ?? 'Sin categoría').toString();
+        final categoria = (activo?['categoria'] ?? 'Sin categoría').toString();
 
-        final descripcion =
-            (activo?['descripcion'] ?? 'Préstamo institucional').toString();
+        final descripcion = (activo?['descripcion'] ?? 'Préstamo institucional')
+            .toString();
 
         final fondoLateral = _colorDecorativo(widget.posicion);
 
