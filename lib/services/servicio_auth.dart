@@ -2,11 +2,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/enums.dart';
- 
+import 'servicio_notificaciones.dart';
+
 class ServicioAuth {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
- 
+  final ServicioNotificaciones _notificaciones = ServicioNotificaciones();
+
   // ── Iniciar sesión ────────────────────────────────────────────────────────
   Future<User?> login(String email, String password) async {
     try {
@@ -37,7 +39,7 @@ class ServicioAuth {
       rethrow;
     }
   }
- 
+
   // ── Registrar nuevo usuario (siempre como solicitante/pendiente) ──────────
   Future<User?> registrar({
     required String email,
@@ -52,23 +54,30 @@ class ServicioAuth {
       );
       final user = credential.user;
       if (user == null) throw Exception('No se pudo crear la cuenta.');
- 
+
       // 2. Actualizar display name
       await user.updateDisplayName(nombre);
- 
+
       // 3. Crear documento en Firestore con rol fijo = solicitante y estado = pendingApproval
       await _firestore.collection('users').doc(user.uid).set({
         'uid': user.uid,
         'correo': email,
         'nombre': nombre,
-        'role': 'solicitante',          // Siempre estudiante al registrarse
-        'status': 'pendingApproval',    // Requiere aprobación de admin
+        'role': 'solicitante', // Siempre estudiante al registrarse
+        'status': 'pendingApproval', // Requiere aprobación de admin
         'creadoEn': FieldValue.serverTimestamp(),
       });
- 
+      await _notificaciones.crearNotificacion(
+        usuarioId: user.uid,
+        titulo: 'Bienvenido/a al sistema',
+        mensaje:
+            'Tu cuenta fue creada correctamente. Ahora debes esperar la aprobación del administrador para acceder al sistema.',
+        tipo: 'registro',
+      );
+
       // 4. Cerrar sesión inmediatamente (no puede entrar sin aprobación)
       await _auth.signOut();
- 
+
       return user;
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
@@ -89,15 +98,15 @@ class ServicioAuth {
       rethrow;
     }
   }
- 
+
   // ── Cerrar sesión ─────────────────────────────────────────────────────────
   Future<void> logout() async {
     await _auth.signOut();
   }
- 
+
   // ── Usuario actualmente autenticado ───────────────────────────────────────
   User? get usuarioActual => _auth.currentUser;
- 
+
   // ── Verificar si el usuario puede acceder (activo) ────────────────────────
   bool puedeAcceder(
     User? user, {
